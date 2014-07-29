@@ -1,6 +1,16 @@
-﻿// needs Markdown.Converter.js at the moment
+﻿"use strict";
+var textareaCaretPosition = require('./components/textarea-caret-position')
+var Markdown = {};
+module.exports = Markdown;
 
-(function () {
+// https://developer.mozilla.org/en-US/docs/Web/JavaScript/Reference/Global_Objects/String/Trim
+if (!String.prototype.trim) {
+  String.prototype.trim = function () {
+    return this.replace(/^\s+|\s+$/g, '');
+  };
+}
+
+(function (Markdown) {
 
     var util = {},
         position = {},
@@ -67,6 +77,43 @@
     var imageDefaultText = "http://";
     var linkDefaultText = "http://";
 
+
+    function identity(x) { return x; }
+    function returnFalse(x) { return false; }
+
+    function HookCollection() { }
+
+    HookCollection.prototype = {
+
+        chain: function (hookname, func) {
+            var original = this[hookname];
+            if (!original)
+                throw new Error("unknown hook " + hookname);
+
+            if (original === identity)
+                this[hookname] = func;
+            else
+                this[hookname] = function (text) {
+                    var args = Array.prototype.slice.call(arguments, 0);
+                    args[0] = original.apply(null, args);
+                    return func.apply(null, args);
+                };
+        },
+        set: function (hookname, func) {
+            if (!this[hookname])
+                throw new Error("unknown hook " + hookname);
+            this[hookname] = func;
+        },
+        addNoop: function (hookname) {
+            this[hookname] = identity;
+        },
+        addFalse: function (hookname) {
+            this[hookname] = returnFalse;
+        }
+    };
+
+    Markdown.HookCollection = HookCollection;
+
     // -------------------------------------------------------------------
     //  END OF YOUR CHANGES
     // -------------------------------------------------------------------
@@ -88,8 +135,7 @@
     // The constructed editor object has the methods:
     // - getConverter() returns the markdown converter object that was passed to the constructor
     // - run() actually starts the editor; should be called after all necessary plugins are registered. Calling this more than once is a no-op.
-    // - refreshPreview() forces the preview to be updated. This method is only available after run() was called.
-    Markdown.Editor = function (markdownConverter, idPostfix, options) {
+    Markdown.Editor = function (idPostfix, options) {
         
         options = options || {};
 
@@ -100,19 +146,17 @@
         if (options.helpButton) {
             options.strings.help = options.strings.help || options.helpButton.title;
         }
-        var getString = function (identifier) { return options.strings[identifier] || defaultsStrings[identifier]; }
+
+        var getString = function (identifier) { return options.strings[identifier] || defaultsStrings[identifier]; };
 
         idPostfix = idPostfix || "";
 
         var hooks = this.hooks = new Markdown.HookCollection();
-        hooks.addNoop("onPreviewRefresh");       // called with no arguments after the preview has been refreshed
         hooks.addNoop("postBlockquoteCreation"); // called with the user's selection *after* the blockquote was created; should return the actual to-be-inserted text
         hooks.addFalse("insertImageDialog");     /* called with one parameter: a callback to be called with the URL of the image. If the application creates
                                                   * its own image insertion dialog, this hook should return true, and the callback should be called with the chosen
                                                   * image url (or null if the user cancelled). If this hook returns false, the default dialog will be used.
                                                   */
-
-        this.getConverter = function () { return markdownConverter; }
 
         var that = this,
             panels;
@@ -123,31 +167,21 @@
 
             panels = new PanelCollection(idPostfix);
             var commandManager = new CommandManager(hooks, getString);
-            var previewManager = new PreviewManager(markdownConverter, panels, function () { hooks.onPreviewRefresh(); });
             var undoManager, uiManager;
 
             if (!/\?noundo/.test(doc.location.href)) {
                 undoManager = new UndoManager(function () {
-                    previewManager.refresh();
-                    if (uiManager) // not available on the first call
-                        uiManager.setUndoRedoButtonStates();
                 }, panels);
                 this.textOperation = function (f) {
                     undoManager.setCommandMode();
                     f();
-                    that.refreshPreview();
-                }
+                };
             }
 
-            uiManager = new UIManager(idPostfix, panels, undoManager, previewManager, commandManager, options.helpButton, getString);
-            uiManager.setUndoRedoButtonStates();
-
-            var forceRefresh = that.refreshPreview = function () { previewManager.refresh(true); };
-
-            forceRefresh();
+            uiManager = new UIManager(idPostfix, panels, undoManager, commandManager, options.helpButton, getString);
         };
 
-    }
+    };
 
     // before: contains all the text in the input box BEFORE the selection.
     // after: contains all the text in the input box AFTER the selection.
@@ -298,10 +332,26 @@
     // and 8) and ONLY on button clicks.  Keyboard shortcuts work
     // normally since the focus never leaves the textarea.
     function PanelCollection(postfix) {
+        var self = this;
+
         this.buttonBar = doc.getElementById("wmd-button-bar" + postfix);
-        this.preview = doc.getElementById("wmd-preview" + postfix);
+        this.buttonBar.show = function() {
+            if (this.className.indexOf('show') === -1) {
+                var boundary = textareaCaretPosition(self.input, self.input.selectionStart, self.input.selectionEnd),
+                    middleBoundary = boundary.left + (boundary.right - boundary.left) / 2,
+                    halfWidth = this.offsetWidth / 2;
+
+                // this.style.top = (boundary.top - 10 - this.offsetHeight) + 'px';
+                this.style.top = (boundary.top - 10) + 'px';
+                this.style.left = (middleBoundary - halfWidth) + 'px';
+                this.className += ' show';
+            }
+        };
+
+        this.buttonBar.hide = function() { this.className = this.className.replace(' show', ''); };
+
         this.input = doc.getElementById("wmd-input" + postfix);
-    };
+    }
 
     // Returns true if the DOM element is visible, false if it's hidden.
     // Checks if display is anything other than none.
@@ -820,200 +870,6 @@
         this.init();
     };
 
-    function PreviewManager(converter, panels, previewRefreshCallback) {
-
-        var managerObj = this;
-        var timeout;
-        var elapsedTime;
-        var oldInputText;
-        var maxDelay = 3000;
-        var startType = "delayed"; // The other legal value is "manual"
-
-        // Adds event listeners to elements
-        var setupEvents = function (inputElem, listener) {
-
-            util.addEvent(inputElem, "input", listener);
-            inputElem.onpaste = listener;
-            inputElem.ondrop = listener;
-
-            util.addEvent(inputElem, "keypress", listener);
-            util.addEvent(inputElem, "keydown", listener);
-        };
-
-        var getDocScrollTop = function () {
-
-            var result = 0;
-
-            if (window.innerHeight) {
-                result = window.pageYOffset;
-            }
-            else
-                if (doc.documentElement && doc.documentElement.scrollTop) {
-                    result = doc.documentElement.scrollTop;
-                }
-                else
-                    if (doc.body) {
-                        result = doc.body.scrollTop;
-                    }
-
-            return result;
-        };
-
-        var makePreviewHtml = function () {
-
-            // If there is no registered preview panel
-            // there is nothing to do.
-            if (!panels.preview)
-                return;
-
-
-            var text = panels.input.value;
-            if (text && text == oldInputText) {
-                return; // Input text hasn't changed.
-            }
-            else {
-                oldInputText = text;
-            }
-
-            var prevTime = new Date().getTime();
-
-            text = converter.makeHtml(text);
-
-            // Calculate the processing time of the HTML creation.
-            // It's used as the delay time in the event listener.
-            var currTime = new Date().getTime();
-            elapsedTime = currTime - prevTime;
-
-            pushPreviewHtml(text);
-        };
-
-        // setTimeout is already used.  Used as an event listener.
-        var applyTimeout = function () {
-
-            if (timeout) {
-                clearTimeout(timeout);
-                timeout = undefined;
-            }
-
-            if (startType !== "manual") {
-
-                var delay = 0;
-
-                if (startType === "delayed") {
-                    delay = elapsedTime;
-                }
-
-                if (delay > maxDelay) {
-                    delay = maxDelay;
-                }
-                timeout = setTimeout(makePreviewHtml, delay);
-            }
-        };
-
-        var getScaleFactor = function (panel) {
-            if (panel.scrollHeight <= panel.clientHeight) {
-                return 1;
-            }
-            return panel.scrollTop / (panel.scrollHeight - panel.clientHeight);
-        };
-
-        var setPanelScrollTops = function () {
-            if (panels.preview) {
-                panels.preview.scrollTop = (panels.preview.scrollHeight - panels.preview.clientHeight) * getScaleFactor(panels.preview);
-            }
-        };
-
-        this.refresh = function (requiresRefresh) {
-
-            if (requiresRefresh) {
-                oldInputText = "";
-                makePreviewHtml();
-            }
-            else {
-                applyTimeout();
-            }
-        };
-
-        this.processingTime = function () {
-            return elapsedTime;
-        };
-
-        var isFirstTimeFilled = true;
-
-        // IE doesn't let you use innerHTML if the element is contained somewhere in a table
-        // (which is the case for inline editing) -- in that case, detach the element, set the
-        // value, and reattach. Yes, that *is* ridiculous.
-        var ieSafePreviewSet = function (text) {
-            var preview = panels.preview;
-            var parent = preview.parentNode;
-            var sibling = preview.nextSibling;
-            parent.removeChild(preview);
-            preview.innerHTML = text;
-            if (!sibling)
-                parent.appendChild(preview);
-            else
-                parent.insertBefore(preview, sibling);
-        }
-
-        var nonSuckyBrowserPreviewSet = function (text) {
-            panels.preview.innerHTML = text;
-        }
-
-        var previewSetter;
-
-        var previewSet = function (text) {
-            if (previewSetter)
-                return previewSetter(text);
-
-            try {
-                nonSuckyBrowserPreviewSet(text);
-                previewSetter = nonSuckyBrowserPreviewSet;
-            } catch (e) {
-                previewSetter = ieSafePreviewSet;
-                previewSetter(text);
-            }
-        };
-
-        var pushPreviewHtml = function (text) {
-
-            var emptyTop = position.getTop(panels.input) - getDocScrollTop();
-
-            if (panels.preview) {
-                previewSet(text);
-                previewRefreshCallback();
-            }
-
-            setPanelScrollTops();
-
-            if (isFirstTimeFilled) {
-                isFirstTimeFilled = false;
-                return;
-            }
-
-            var fullTop = position.getTop(panels.input) - getDocScrollTop();
-
-            if (uaSniffed.isIE) {
-                setTimeout(function () {
-                    window.scrollBy(0, fullTop - emptyTop);
-                }, 0);
-            }
-            else {
-                window.scrollBy(0, fullTop - emptyTop);
-            }
-        };
-
-        var init = function () {
-
-            setupEvents(panels.input, applyTimeout);
-            makePreviewHtml();
-
-            if (panels.preview) {
-                panels.preview.scrollTop = 0;
-            }
-        };
-
-        init();
-    };
 
     // Creates the background behind the hyperlink text entry box.
     // And download dialog
@@ -1214,9 +1070,10 @@
         }, 0);
     };
 
-    function UIManager(postfix, panels, undoManager, previewManager, commandManager, helpOptions, getString) {
+    function UIManager(postfix, panels, undoManager, commandManager, helpOptions, getString) {
 
-        var inputBox = panels.input,
+        var timer,
+            inputBox = panels.input,
             buttons = {}; // buttons.undo, buttons.link, etc. The actual DOM elements.
 
         makeSpritedButtonRow();
@@ -1247,24 +1104,6 @@
                     case "q":
                         doClick(buttons.quote);
                         break;
-                    case "k":
-                        doClick(buttons.code);
-                        break;
-                    case "g":
-                        doClick(buttons.image);
-                        break;
-                    case "o":
-                        doClick(buttons.olist);
-                        break;
-                    case "u":
-                        doClick(buttons.ulist);
-                        break;
-                    case "h":
-                        doClick(buttons.heading);
-                        break;
-                    case "r":
-                        doClick(buttons.hr);
-                        break;
                     case "y":
                         doClick(buttons.redo);
                         break;
@@ -1291,6 +1130,22 @@
             }
         });
 
+        function showToolbar(e) {
+            setTimeout(function () {
+                var sel = window.getSelection(),
+                    s = sel? sel.toString().trim().length: false;
+
+                if (s) {
+                    panels.buttonBar.show();
+                }
+                else {
+                    panels.buttonBar.hide();
+                }
+            }, 0);
+        }
+
+        util.addEvent(inputBox, 'mouseup', showToolbar);
+
         // Auto-indent on shift-enter
         util.addEvent(inputBox, "keyup", function (key) {
             if (key.shiftKey && !key.ctrlKey && !key.metaKey) {
@@ -1301,6 +1156,7 @@
                     fakeButton.textOp = bindCommand("doAutoindent");
                     doClick(fakeButton);
                 }
+                else showToolbar(key);
             }
         });
 
@@ -1360,7 +1216,6 @@
                     }
 
                     state.restore();
-                    previewManager.refresh();
                 };
 
                 var noCleanup = button.textOp(chunks, fixupInputArea);
@@ -1378,152 +1233,60 @@
 
         function setupButton(button, isEnabled) {
 
-            var normalYShift = "0px";
-            var disabledYShift = "-20px";
-            var highlightYShift = "-40px";
             var image = button.getElementsByTagName("span")[0];
             if (isEnabled) {
-                image.style.backgroundPosition = button.XShift + " " + normalYShift;
-                button.onmouseover = function () {
-                    image.style.backgroundPosition = this.XShift + " " + highlightYShift;
-                };
-
-                button.onmouseout = function () {
-                    image.style.backgroundPosition = this.XShift + " " + normalYShift;
-                };
-
-                // IE tries to select the background image "button" text (it's
-                // implemented in a list item) so we have to cache the selection
-                // on mousedown.
-                if (uaSniffed.isIE) {
-                    button.onmousedown = function () {
-                        if (doc.activeElement && doc.activeElement !== panels.input) { // we're not even in the input box, so there's no selection
-                            return;
-                        }
-                        panels.ieCachedRange = document.selection.createRange();
-                        panels.ieCachedScrollTop = panels.input.scrollTop;
-                    };
-                }
-
-                if (!button.isHelp) {
-                    button.onclick = function () {
-                        if (this.onmouseout) {
-                            this.onmouseout();
-                        }
-                        doClick(this);
-                        return false;
-                    }
-                }
+                button.className += ' wmd-button-enabled';
             }
             else {
-                image.style.backgroundPosition = button.XShift + " " + disabledYShift;
-                button.onmouseover = button.onmouseout = button.onclick = function () { };
+                button.className += button.className.replace(' wmd-button-enabled', '');
             }
         }
 
         function bindCommand(method) {
             if (typeof method === "string")
                 method = commandManager[method];
-            return function () { method.apply(commandManager, arguments); }
+            return function () { method.apply(commandManager, arguments); };
         }
 
         function makeSpritedButtonRow() {
 
             var buttonBar = panels.buttonBar;
-
-            var normalYShift = "0px";
-            var disabledYShift = "-20px";
-            var highlightYShift = "-40px";
-
             var buttonRow = document.createElement("ul");
-            buttonRow.id = "wmd-button-row" + postfix;
-            buttonRow.className = 'wmd-button-row';
+            buttonRow.className = 'wmd-button-row wmd-button-row' + postfix;
             buttonRow = buttonBar.appendChild(buttonRow);
-            var xPosition = 0;
-            var makeButton = function (id, title, XShift, textOp) {
+
+            var makeButton = function (id, title, className, textOp, hidden) {
                 var button = document.createElement("li");
-                button.className = "wmd-button";
-                button.style.left = xPosition + "px";
-                xPosition += 25;
-                var buttonImage = document.createElement("span");
+                button.className = "wmd-button" + (hidden? ' wmd-button-hidden': '');
                 button.id = id + postfix;
+                var buttonImage = document.createElement("span");
+                buttonImage.className = "fa " + className;
                 button.appendChild(buttonImage);
-                button.title = title;
-                button.XShift = XShift;
                 if (textOp)
                     button.textOp = textOp;
                 setupButton(button, true);
-                buttonRow.appendChild(button);
+                if (!hidden) buttonRow.appendChild(button);
+
                 return button;
             };
-            var makeSpacer = function (num) {
-                var spacer = document.createElement("li");
-                spacer.className = "wmd-spacer wmd-spacer" + num;
-                spacer.id = "wmd-spacer" + num + postfix;
-                buttonRow.appendChild(spacer);
-                xPosition += 25;
-            }
 
-            buttons.bold = makeButton("wmd-bold-button", getString("bold"), "0px", bindCommand("doBold"));
-            buttons.italic = makeButton("wmd-italic-button", getString("italic"), "-20px", bindCommand("doItalic"));
-            makeSpacer(1);
-            buttons.link = makeButton("wmd-link-button", getString("link"), "-40px", bindCommand(function (chunk, postProcessing) {
+            buttons.bold = makeButton("wmd-bold-button", getString("bold"), "fa-bold", bindCommand("doBold"));
+            buttons.italic = makeButton("wmd-italic-button", getString("italic"), "fa-italic", bindCommand("doItalic"));
+            buttons.link = makeButton("wmd-link-button", getString("link"), "fa-link", bindCommand(function (chunk, postProcessing) {
                 return this.doLinkOrImage(chunk, postProcessing, false);
             }));
-            buttons.quote = makeButton("wmd-quote-button", getString("quote"), "-60px", bindCommand("doBlockquote"));
-            buttons.code = makeButton("wmd-code-button", getString("code"), "-80px", bindCommand("doCode"));
-            buttons.image = makeButton("wmd-image-button", getString("image"), "-100px", bindCommand(function (chunk, postProcessing) {
-                return this.doLinkOrImage(chunk, postProcessing, true);
-            }));
-            makeSpacer(2);
-            buttons.olist = makeButton("wmd-olist-button", getString("olist"), "-120px", bindCommand(function (chunk, postProcessing) {
-                this.doList(chunk, postProcessing, true);
-            }));
-            buttons.ulist = makeButton("wmd-ulist-button", getString("ulist"), "-140px", bindCommand(function (chunk, postProcessing) {
-                this.doList(chunk, postProcessing, false);
-            }));
-            buttons.heading = makeButton("wmd-heading-button", getString("heading"), "-160px", bindCommand("doHeading"));
-            buttons.hr = makeButton("wmd-hr-button", getString("hr"), "-180px", bindCommand("doHorizontalRule"));
-            makeSpacer(3);
-            buttons.undo = makeButton("wmd-undo-button", getString("undo"), "-200px", null);
+            buttons.quote = makeButton("wmd-quote-button", getString("quote"), "fa-quote-right", bindCommand("doBlockquote"));
+
+            buttons.undo = makeButton("wmd-undo-button", getString("undo"), "", null, true);
             buttons.undo.execute = function (manager) { if (manager) manager.undo(); };
 
             var redoTitle = /win/.test(nav.platform.toLowerCase()) ?
                 getString("redo") :
                 getString("redomac"); // mac and other non-Windows platforms
 
-            buttons.redo = makeButton("wmd-redo-button", redoTitle, "-220px", null);
+            buttons.redo = makeButton("wmd-redo-button", redoTitle, "", null, true);
             buttons.redo.execute = function (manager) { if (manager) manager.redo(); };
-
-            if (helpOptions) {
-                var helpButton = document.createElement("li");
-                var helpButtonImage = document.createElement("span");
-                helpButton.appendChild(helpButtonImage);
-                helpButton.className = "wmd-button wmd-help-button";
-                helpButton.id = "wmd-help-button" + postfix;
-                helpButton.XShift = "-240px";
-                helpButton.isHelp = true;
-                helpButton.style.right = "0px";
-                helpButton.title = getString("help");
-                helpButton.onclick = helpOptions.handler;
-
-                setupButton(helpButton, true);
-                buttonRow.appendChild(helpButton);
-                buttons.help = helpButton;
-            }
-
-            setUndoRedoButtonStates();
         }
-
-        function setUndoRedoButtonStates() {
-            if (undoManager) {
-                setupButton(buttons.undo, undoManager.canUndo());
-                setupButton(buttons.redo, undoManager.canRedo());
-            }
-        };
-
-        this.setUndoRedoButtonStates = setUndoRedoButtonStates;
-
     }
 
     function CommandManager(pluginHooks, getString) {
@@ -2236,4 +1999,6 @@
     }
 
 
-})();
+})(Markdown);
+
+module.exports = Markdown.Editor;

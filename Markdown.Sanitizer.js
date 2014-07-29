@@ -1,12 +1,5 @@
-(function () {
-    var output, Converter;
-    if (typeof exports === "object" && typeof require === "function") { // we're in a CommonJS (e.g. Node.js) module
-        output = exports;
-        Converter = require("./Markdown.Converter").Converter;
-    } else {
-        output = window.Markdown;
-        Converter = output.Converter;
-    }
+(function (Converter) {
+    var output;
         
     output.getSanitizingConverter = function () {
         var converter = new Converter();
@@ -105,4 +98,4 @@
         });
         return html;
     }
-})();
+})(Converter);
