@@ -1,5 +1,5 @@
 ﻿"use strict";
-var textareaCaretPosition = require('./components/textarea-caret-position')
+var CaretPosition = require('textarea-caret-position');
 var Markdown = {};
 module.exports = Markdown;
 
@@ -135,9 +135,11 @@ if (!String.prototype.trim) {
     // The constructed editor object has the methods:
     // - getConverter() returns the markdown converter object that was passed to the constructor
     // - run() actually starts the editor; should be called after all necessary plugins are registered. Calling this more than once is a no-op.
-    Markdown.Editor = function (idPostfix, options) {
+    Markdown.Editor = function (derbyPageDown) {
         
-        options = options || {};
+        var options = {};
+        var idPostfix = "";
+        this.derbyPageDown = derbyPageDown;
 
         if (typeof options.handler === "function") { //backwards compatible behavior
             options = { helpButton: options };
@@ -149,7 +151,6 @@ if (!String.prototype.trim) {
 
         var getString = function (identifier) { return options.strings[identifier] || defaultsStrings[identifier]; };
 
-        idPostfix = idPostfix || "";
 
         var hooks = this.hooks = new Markdown.HookCollection();
         hooks.addNoop("postBlockquoteCreation"); // called with the user's selection *after* the blockquote was created; should return the actual to-be-inserted text
@@ -165,7 +166,7 @@ if (!String.prototype.trim) {
             if (panels)
                 return; // already initialized
 
-            panels = new PanelCollection(idPostfix);
+            panels = new PanelCollection();
             var commandManager = new CommandManager(hooks, getString);
             var undoManager, uiManager;
 
@@ -331,13 +332,13 @@ if (!String.prototype.trim) {
     // This ONLY affects Internet Explorer (tested on versions 6, 7
     // and 8) and ONLY on button clicks.  Keyboard shortcuts work
     // normally since the focus never leaves the textarea.
-    function PanelCollection(postfix) {
+    function PanelCollection() {
         var self = this;
 
-        this.buttonBar = doc.getElementById("wmd-button-bar" + postfix);
+        this.buttonBar = doc.getElementById("wmd-button-bar");
         this.buttonBar.show = function() {
             if (this.className.indexOf('show') === -1) {
-                var boundary = textareaCaretPosition(self.input, self.input.selectionStart, self.input.selectionEnd),
+                var boundary = self.caretPosition.get(self.input.selectionStart, self.input.selectionEnd),
                     middleBoundary = boundary.left + (boundary.right - boundary.left) / 2,
                     halfWidth = this.offsetWidth / 2;
 
@@ -349,8 +350,10 @@ if (!String.prototype.trim) {
         };
 
         this.buttonBar.hide = function() { this.className = this.className.replace(' show', ''); };
+        this.input = doc.getElementById("wmd-input");
 
-        this.input = doc.getElementById("wmd-input" + postfix);
+        // caret position
+        this.caretPosition = new CaretPosition(this.input);
     }
 
     // Returns true if the DOM element is visible, false if it's hidden.

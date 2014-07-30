@@ -1,0 +1,6 @@
+<index:>
+	<div as="expandingArea" class="d-textarea">
+		<!-- <div id="selection-position" as="selectionStart"><span as="selectionEnd"></span></div> -->
+		<pre><span>{{@text}}</span><br></pre>
+		<textarea on-keydown="emitKeydown($event, $element)" id="{{@id}}" disabled="{{@disabled}}" name="{{@name_}}" placeholder="{{@placeholder}}" class="{{@class}}">{{@text}}</textarea>
+	</div>
