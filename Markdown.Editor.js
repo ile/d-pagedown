@@ -28,40 +28,15 @@ if (!String.prototype.trim) {
         };
 
     var defaultsStrings = {
-        bold: "Strong <strong> Ctrl+B",
         boldexample: "strong text",
-
-        italic: "Emphasis <em> Ctrl+I",
         italicexample: "emphasized text",
-
-        link: "Hyperlink <a> Ctrl+L",
         linkdescription: "enter link description here",
         linkdialog: "<p><b>Insert Hyperlink</b></p><p>http://example.com/ \"optional title\"</p>",
-
-        quote: "Blockquote <blockquote> Ctrl+Q",
         quoteexample: "Blockquote",
-
-        code: "Code Sample <pre><code> Ctrl+K",
         codeexample: "enter code here",
-
-        image: "Image <img> Ctrl+G",
         imagedescription: "enter image description here",
         imagedialog: "<p><b>Insert Image</b></p><p>http://example.com/images/diagram.jpg \"optional title\"<br><br>Need <a href='http://www.google.com/search?q=free+image+hosting' target='_blank'>free image hosting?</a></p>",
-
-        olist: "Numbered List <ol> Ctrl+O",
-        ulist: "Bulleted List <ul> Ctrl+U",
-        litem: "List item",
-
-        heading: "Heading <h1>/<h2> Ctrl+H",
-        headingexample: "Heading",
-
-        hr: "Horizontal Rule <hr> Ctrl+R",
-
-        undo: "Undo - Ctrl+Z",
-        redo: "Redo - Ctrl+Y",
-        redomac: "Redo - Ctrl+Shift+Z",
-
-        help: "Markdown Editing Help"
+        headingexample: "Heading"
     };
 
 
@@ -337,12 +312,20 @@ if (!String.prototype.trim) {
 
         this.buttonBar = doc.getElementById("wmd-button-bar");
         this.buttonBar.show = function() {
+
+            // showing but selection has changed
+            if (this.className.indexOf('show') !== -1 &&
+                this.sel !== [ self.input.selectionStart, self.input.selectionEnd ]) {
+                this.hide();
+            }
+
             if (this.className.indexOf('show') === -1) {
                 var boundary = self.caretPosition.get(self.input.selectionStart, self.input.selectionEnd),
                     middleBoundary = boundary.left + (boundary.right - boundary.left) / 2,
                     halfWidth = this.offsetWidth / 2;
 
                 // this.style.top = (boundary.top - 10 - this.offsetHeight) + 'px';
+                this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
                 this.style.top = (boundary.top - 10) + 'px';
                 this.style.left = (middleBoundary - halfWidth) + 'px';
                 this.className += ' show';
@@ -1258,7 +1241,7 @@ if (!String.prototype.trim) {
             buttonRow.className = 'wmd-button-row wmd-button-row' + postfix;
             buttonRow = buttonBar.appendChild(buttonRow);
 
-            var makeButton = function (id, title, className, textOp, hidden) {
+            var makeButton = function (id, className, textOp, hidden) {
                 var button = document.createElement("li");
                 button.className = "wmd-button" + (hidden? ' wmd-button-hidden': '');
                 button.id = id + postfix;
@@ -1273,21 +1256,16 @@ if (!String.prototype.trim) {
                 return button;
             };
 
-            buttons.bold = makeButton("wmd-bold-button", getString("bold"), "fa-bold", bindCommand("doBold"));
-            buttons.italic = makeButton("wmd-italic-button", getString("italic"), "fa-italic", bindCommand("doItalic"));
-            buttons.link = makeButton("wmd-link-button", getString("link"), "fa-link", bindCommand(function (chunk, postProcessing) {
+            buttons.bold = makeButton("wmd-bold-button", "fa-bold", bindCommand("doBold"));
+            buttons.italic = makeButton("wmd-italic-button", "fa-italic", bindCommand("doItalic"));
+            buttons.link = makeButton("wmd-link-button", "fa-link", bindCommand(function (chunk, postProcessing) {
                 return this.doLinkOrImage(chunk, postProcessing, false);
             }));
-            buttons.quote = makeButton("wmd-quote-button", getString("quote"), "fa-quote-right", bindCommand("doBlockquote"));
+            buttons.quote = makeButton("wmd-quote-button", "fa-quote-right", bindCommand("doBlockquote"));
 
-            buttons.undo = makeButton("wmd-undo-button", getString("undo"), "", null, true);
+            buttons.undo = makeButton("wmd-undo-button", "", null, true);
             buttons.undo.execute = function (manager) { if (manager) manager.undo(); };
-
-            var redoTitle = /win/.test(nav.platform.toLowerCase()) ?
-                getString("redo") :
-                getString("redomac"); // mac and other non-Windows platforms
-
-            buttons.redo = makeButton("wmd-redo-button", redoTitle, "", null, true);
+            buttons.redo = makeButton("wmd-redo-button", "", null, true);
             buttons.redo.execute = function (manager) { if (manager) manager.redo(); };
         }
     }
