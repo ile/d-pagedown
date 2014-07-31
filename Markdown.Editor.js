@@ -1215,7 +1215,7 @@ if (!String.prototype.trim) {
             if (button.execute) {
                 button.execute(undoManager);
             }
-        };
+        }
 
         function setupButton(button, isEnabled) {
 
@@ -1226,6 +1226,10 @@ if (!String.prototype.trim) {
             else {
                 button.className += button.className.replace(' wmd-button-enabled', '');
             }
+
+            button.onclick = function () {
+                doClick(this);
+            };
         }
 
         function bindCommand(method) {
