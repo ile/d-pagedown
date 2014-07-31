@@ -321,8 +321,13 @@ if (!String.prototype.trim) {
 
             if (this.className.indexOf('show') === -1) {
                 var boundary = self.caretPosition.get(self.input.selectionStart, self.input.selectionEnd),
-                    middleBoundary = boundary.left + (boundary.right - boundary.left) / 2,
+                    middleBoundary = (boundary.right + boundary.left) / 2,
                     halfWidth = this.offsetWidth / 2;
+
+                console.log(boundary);
+                console.log('left: '+(middleBoundary - halfWidth));
+                console.log('middleBoundary: '+middleBoundary);
+                console.log('halfWidth: '+halfWidth);
 
                 // this.style.top = (boundary.top - 10 - this.offsetHeight) + 'px';
                 this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
@@ -687,7 +692,7 @@ if (!String.prototype.trim) {
 
             var handlePaste = function () {
                 if (uaSniffed.isIE || (inputStateObj && inputStateObj.text != panels.input.value)) {
-                    if (timer == undefined) {
+                    if (timer === undefined) {
                         mode = "paste";
                         saveState();
                         refreshState();
@@ -1070,6 +1075,7 @@ if (!String.prototype.trim) {
         }
 
         util.addEvent(inputBox, keyEvent, function (key) {
+            panels.buttonBar.hide();
 
             // Check to see if we have a button key and, if so execute the callback.
             if ((key.ctrlKey || key.metaKey) && !key.altKey && !key.shiftKey) {
@@ -1116,11 +1122,12 @@ if (!String.prototype.trim) {
             }
         });
 
-        function showToolbar(e) {
+        function showToolbarIfNeeded(e) {
             setTimeout(function () {
                 var sel = window.getSelection(),
                     s = sel? sel.toString().trim().length: false;
 
+                // show toolbar if text is selected
                 if (s) {
                     panels.buttonBar.show();
                 }
@@ -1130,7 +1137,7 @@ if (!String.prototype.trim) {
             }, 0);
         }
 
-        util.addEvent(inputBox, 'mouseup', showToolbar);
+        util.addEvent(inputBox, 'mouseup', showToolbarIfNeeded);
 
         // Auto-indent on shift-enter
         util.addEvent(inputBox, "keyup", function (key) {
@@ -1142,7 +1149,7 @@ if (!String.prototype.trim) {
                     fakeButton.textOp = bindCommand("doAutoindent");
                     doClick(fakeButton);
                 }
-                else showToolbar(key);
+                else showToolbarIfNeeded(key);
             }
         });
 
@@ -1266,7 +1273,6 @@ if (!String.prototype.trim) {
                 return this.doLinkOrImage(chunk, postProcessing, false);
             }));
             buttons.quote = makeButton("wmd-quote-button", "fa-quote-right", bindCommand("doBlockquote"));
-
             buttons.undo = makeButton("wmd-undo-button", "", null, true);
             buttons.undo.execute = function (manager) { if (manager) manager.undo(); };
             buttons.redo = makeButton("wmd-redo-button", "", null, true);
