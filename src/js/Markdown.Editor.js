@@ -1203,6 +1203,7 @@ if (!String.prototype.trim) {
             }
 
             button.onclick = function () {
+                editor.panels.buttonBar.hide();
                 editor.commandManager.doClick(this);
             };
         }
