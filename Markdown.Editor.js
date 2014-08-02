@@ -134,27 +134,24 @@ if (!String.prototype.trim) {
                                                   * image url (or null if the user cancelled). If this hook returns false, the default dialog will be used.
                                                   */
 
-        var that = this,
-            panels;
+        var that = this;
 
         this.run = function () {
-            if (panels)
+            if (this.panels)
                 return; // already initialized
 
-            panels = new PanelCollection();
-            var commandManager = new CommandManager(hooks, getString);
-            var undoManager, uiManager;
+            this.panels = new PanelCollection();
+            this.commandManager = new CommandManager(this, hooks, getString);
 
             if (!/\?noundo/.test(doc.location.href)) {
-                undoManager = new UndoManager(function () {
-                }, panels);
+                this.undoManager = new UndoManager(function () { }, this.panels);
                 this.textOperation = function (f) {
-                    undoManager.setCommandMode();
+                    that.undoManager.setCommandMode();
                     f();
                 };
             }
 
-            uiManager = new UIManager(idPostfix, panels, undoManager, commandManager, options.helpButton, getString);
+            this.uiManager = new UIManager(this, idPostfix, options.helpButton, getString);
         };
 
     };
@@ -324,10 +321,10 @@ if (!String.prototype.trim) {
                     middleBoundary = (boundary.right + boundary.left) / 2,
                     halfWidth = this.offsetWidth / 2;
 
-                console.log(boundary);
-                console.log('left: '+(middleBoundary - halfWidth));
-                console.log('middleBoundary: '+middleBoundary);
-                console.log('halfWidth: '+halfWidth);
+                // console.log(boundary);
+                // console.log('left: '+(middleBoundary - halfWidth));
+                // console.log('middleBoundary: '+middleBoundary);
+                // console.log('halfWidth: '+halfWidth);
 
                 // this.style.top = (boundary.top - 10 - this.offsetHeight) + 'px';
                 this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
@@ -541,6 +538,8 @@ if (!String.prototype.trim) {
         // Removes the last state and restores it.
         this.undo = function () {
 
+            console.log('undo, can = ' + undoObj.canUndo());
+
             if (undoObj.canUndo()) {
                 if (lastState) {
                     // What about setting state -1 to null or checking for undefined?
@@ -564,6 +563,7 @@ if (!String.prototype.trim) {
 
         // Redo an action.
         this.redo = function () {
+            console.log('redo '+stackPtr);
 
             if (undoObj.canRedo()) {
 
@@ -581,6 +581,7 @@ if (!String.prototype.trim) {
 
         // Push the input area state to the stack.
         var saveState = function () {
+            console.log('saveState');
             var currState = inputStateObj || new TextareaState(panels);
 
             if (!currState) {
@@ -603,6 +604,8 @@ if (!String.prototype.trim) {
             if (callback) {
                 callback();
             }
+
+            console.log('stackPtr = '+stackPtr);
         };
 
         var handleCtrlYZ = function (event) {
@@ -1061,97 +1064,102 @@ if (!String.prototype.trim) {
         }, 0);
     };
 
-    function UIManager(postfix, panels, undoManager, commandManager, helpOptions, getString) {
+    function UIManager(editor, postfix, helpOptions, getString) {
 
         var timer,
-            inputBox = panels.input,
+            inputBox = editor.panels.input,
             buttons = {}; // buttons.undo, buttons.link, etc. The actual DOM elements.
 
         makeSpritedButtonRow();
 
-        var keyEvent = "keydown";
-        if (uaSniffed.isOpera) {
-            keyEvent = "keypress";
-        }
+        util.addEvent(inputBox, "keypress", function (evt) {
+            var charCode = evt.keyCode || evt.which,
+                charStr = String.fromCharCode(charCode);
 
-        util.addEvent(inputBox, keyEvent, function (key) {
-            panels.buttonBar.hide();
+            function done(left, right) {
+                editor.commandManager.doWrap(left, right);
+                evt.preventDefault();
+            }
 
-            // Check to see if we have a button key and, if so execute the callback.
-            if ((key.ctrlKey || key.metaKey) && !key.altKey && !key.shiftKey) {
+            switch (charStr) {
+                case "(":
+                    done('(', ')');
+                    break;
+                case "\"":
+                    done('"', '"');
+                    break;
+                case "'":
+                    done("'", "'");
+                    break;
+                case "{":
+                    done("{", "}");
+                    break;
+                case "[":
+                    done("[", "]");
+                    break;
+                case "*":
+                    done("*", "*");
+                    break;
+            }
+        });
 
-                var keyCode = key.charCode || key.keyCode;
-                var keyCodeStr = String.fromCharCode(keyCode).toLowerCase();
+        util.addEvent(inputBox, uaSniffed.isOpera? "keypress": "keydown", function (key) {
 
-                switch (keyCodeStr) {
-                    case "b":
-                        doClick(buttons.bold);
-                        break;
-                    case "i":
-                        doClick(buttons.italic);
-                        break;
-                    case "l":
-                        doClick(buttons.link);
-                        break;
-                    case "q":
-                        doClick(buttons.quote);
-                        break;
-                    case "y":
-                        doClick(buttons.redo);
-                        break;
-                    case "z":
-                        if (key.shiftKey) {
-                            doClick(buttons.redo);
-                        }
-                        else {
-                            doClick(buttons.undo);
-                        }
-                        break;
-                    default:
-                        return;
-                }
-
-
-                if (key.preventDefault) {
-                    key.preventDefault();
-                }
+            function done(button) {
+                editor.commandManager.doClick(button);
+                key.preventDefault();
 
                 if (window.event) {
                     window.event.returnValue = false;
                 }
             }
+
+            editor.panels.buttonBar.hide();
+
+            // Check to see if we have a button key and, if so execute the callback.
+            if ((key.ctrlKey || key.metaKey) && !key.altKey && !key.shiftKey) {
+
+                var keyCode = key.charCode || key.keyCode,
+                    keyCodeStr = String.fromCharCode(keyCode).toLowerCase();
+
+                switch (keyCodeStr) {
+                    case "b":
+                        done(buttons.bold);
+                        break;
+                    case "i":
+                        done(buttons.italic);
+                        break;
+                    case "l":
+                        done(buttons.link);
+                        break;
+                    case "q":
+                        done(buttons.quote);
+                        break;
+                    default:
+                        return;
+                }
+            }
         });
 
         function showToolbarIfNeeded(e) {
-            setTimeout(function () {
-                var sel = window.getSelection(),
-                    s = sel? sel.toString().trim().length: false;
+            if (!e.shiftKey) {
+                setTimeout(function () {
+                    var sel = window.getSelection(),
+                        s = sel? sel.toString().trim().length: false;
 
-                // show toolbar if text is selected
-                if (s) {
-                    panels.buttonBar.show();
-                }
-                else {
-                    panels.buttonBar.hide();
-                }
-            }, 0);
+                    // show toolbar if text is selected
+                    if (s) {
+                        editor.panels.buttonBar.show();
+                    }
+                    else {
+                        editor.panels.buttonBar.hide();
+                    }
+                }, 0);
+            }
         }
 
         util.addEvent(inputBox, 'mouseup', showToolbarIfNeeded);
-
-        // Auto-indent on shift-enter
-        util.addEvent(inputBox, "keyup", function (key) {
-            if (key.shiftKey && !key.ctrlKey && !key.metaKey) {
-                var keyCode = key.charCode || key.keyCode;
-                // Character 13 is Enter
-                if (keyCode === 13) {
-                    var fakeButton = {};
-                    fakeButton.textOp = bindCommand("doAutoindent");
-                    doClick(fakeButton);
-                }
-                else showToolbarIfNeeded(key);
-            }
-        });
+        util.addEvent(inputBox, 'keyup', showToolbarIfNeeded);
 
         // special handler because IE clears the context of the textbox on ESC
         if (uaSniffed.isIE) {
@@ -1161,67 +1169,6 @@ if (!String.prototype.trim) {
                     return false;
                 }
             });
-        }
-
-
-        // Perform the button's action.
-        function doClick(button) {
-
-            inputBox.focus();
-
-            if (button.textOp) {
-
-                if (undoManager) {
-                    undoManager.setCommandMode();
-                }
-
-                var state = new TextareaState(panels);
-
-                if (!state) {
-                    return;
-                }
-
-                var chunks = state.getChunks();
-
-                // Some commands launch a "modal" prompt dialog.  Javascript
-                // can't really make a modal dialog box and the WMD code
-                // will continue to execute while the dialog is displayed.
-                // This prevents the dialog pattern I'm used to and means
-                // I can't do something like this:
-                //
-                // var link = CreateLinkDialog();
-                // makeMarkdownLink(link);
-                //
-                // Instead of this straightforward method of handling a
-                // dialog I have to pass any code which would execute
-                // after the dialog is dismissed (e.g. link creation)
-                // in a function parameter.
-                //
-                // Yes this is awkward and I think it sucks, but there's
-                // no real workaround.  Only the image and link code
-                // create dialogs and require the function pointers.
-                var fixupInputArea = function () {
-
-                    inputBox.focus();
-
-                    if (chunks) {
-                        state.setChunks(chunks);
-                    }
-
-                    state.restore();
-                };
-
-                var noCleanup = button.textOp(chunks, fixupInputArea);
-
-                if (!noCleanup) {
-                    fixupInputArea();
-                }
-
-            }
-
-            if (button.execute) {
-                button.execute(undoManager);
-            }
         }
 
         function setupButton(button, isEnabled) {
@@ -1235,19 +1182,20 @@ if (!String.prototype.trim) {
             }
 
             button.onclick = function () {
-                doClick(this);
+                editor.panels.buttonBar.hide();
+                editor.commandManager.doClick(this);
             };
         }
 
         function bindCommand(method) {
             if (typeof method === "string")
-                method = commandManager[method];
-            return function () { method.apply(commandManager, arguments); };
+                method = editor.commandManager[method];
+            return function () { method.apply(editor.commandManager, arguments); };
         }
 
         function makeSpritedButtonRow() {
 
-            var buttonBar = panels.buttonBar;
+            var buttonBar = editor.panels.buttonBar;
             var buttonRow = document.createElement("ul");
             buttonRow.className = 'wmd-button-row wmd-button-row' + postfix;
             buttonRow = buttonBar.appendChild(buttonRow);
@@ -1269,9 +1217,7 @@ if (!String.prototype.trim) {
 
             buttons.bold = makeButton("wmd-bold-button", "fa-bold", bindCommand("doBold"));
             buttons.italic = makeButton("wmd-italic-button", "fa-italic", bindCommand("doItalic"));
-            buttons.link = makeButton("wmd-link-button", "fa-link", bindCommand(function (chunk, postProcessing) {
-                return this.doLinkOrImage(chunk, postProcessing, false);
-            }));
+            buttons.link = makeButton("wmd-link-button", "fa-link", bindCommand("doLink"));
             buttons.quote = makeButton("wmd-quote-button", "fa-quote-right", bindCommand("doBlockquote"));
             buttons.undo = makeButton("wmd-undo-button", "", null, true);
             buttons.undo.execute = function (manager) { if (manager) manager.undo(); };
@@ -1280,7 +1226,8 @@ if (!String.prototype.trim) {
         }
     }
 
-    function CommandManager(pluginHooks, getString) {
+    function CommandManager(editor, pluginHooks, getString) {
+        this.editor = editor;
         this.hooks = pluginHooks;
         this.getString = getString;
     }
@@ -1311,18 +1258,79 @@ if (!String.prototype.trim) {
         chunk.selection = chunk.selection.replace(/\s+$/, "");
     };
 
-    commandProto.doBold = function (chunk, postProcessing) {
-        return this.doBorI(chunk, postProcessing, 2, this.getString("boldexample"));
+    // Some commands launch a "modal" prompt dialog.  Javascript
+    // can't really make a modal dialog box and the WMD code
+    // will continue to execute while the dialog is displayed.
+    // This prevents the dialog pattern I'm used to and means
+    // I can't do something like this:
+    //
+    // var link = CreateLinkDialog();
+    // makeMarkdownLink(link);
+    //
+    // Instead of this straightforward method of handling a
+    // dialog I have to pass any code which would execute
+    // after the dialog is dismissed (e.g. link creation)
+    // in a function parameter.
+    //
+    // Yes this is awkward and I think it sucks, but there's
+    // no real workaround.  Only the image and link code
+    // create dialogs and require the function pointers.
+    commandProto.initiate = function(state, chunks) {
+        this.state = new TextareaState(this.editor.panels);
+
+        if (this.state) {
+            this.chunk = this.state.getChunks();
+        }
     };
 
-    commandProto.doItalic = function (chunk, postProcessing) {
-        return this.doBorI(chunk, postProcessing, 1, this.getString("italicexample"));
+    commandProto.finish = function(state, chunks) {
+        this.editor.panels.input.focus();
+
+        if (this.chunk) {
+            this.state.setChunks(this.chunk);
+        }
+
+        this.state.restore();
+        this.state = this.chunk = null;
     };
 
-    // chunk: The selected region that will be enclosed with */**
-    // nStars: 1 for italics, 2 for bold
-    // insertText: If you just click the button without highlighting text, this gets inserted
-    commandProto.doBorI = function (chunk, postProcessing, nStars, insertText) {
+
+    // Perform the button's action.
+    commandProto.doClick = function(button) {
+        this.editor.panels.input.focus();
+
+        if (button.textOp) {
+
+            if (this.editor.undoManager) {
+                this.editor.undoManager.setCommandMode();
+            }
+
+            button.textOp();
+        }
+        else if (button.execute) {
+            button.execute(this.editor.undoManager);
+        }
+    };
+
+    commandProto.doBold = function () {
+        return this.doWrap('**', '**', this.getString("boldexample"));
+    };
+
+    commandProto.doItalic = function () {
+        return this.doWrap('*', '*', this.getString("italicexample"));
+    };
+
+    commandProto.doWrap = function (charsLeft, charsRight, insertText) {
+        var howMany = charsLeft.length,
+            charLeft = charsLeft.charAt(0),
+            charRight = charsRight.charAt(0);
+
+        this.initiate();
+        var chunk = this.chunk;
+
+        function escapeRegExp(string){
+          return string.replace(/([.*+?^${}()|\[\]\/\\])/g, "\\$1");
+        }
 
         // Get rid of whitespace and fixup newlines.
         chunk.trimWhitespace();
@@ -1330,39 +1338,38 @@ if (!String.prototype.trim) {
 
         // Look for stars before and after.  Is the chunk already marked up?
         // note that these regex matches cannot fail
-        var starsBefore = /(\**$)/.exec(chunk.before)[0];
-        var starsAfter = /(^\**)/.exec(chunk.after)[0];
+        var before = new RegExp(escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
+        var after = new RegExp("^" + escapeRegExp(charRight) + "*").exec(chunk.after)[0];
 
-        var prevStars = Math.min(starsBefore.length, starsAfter.length);
+        var prev = Math.min(before.length, after.length);
 
         // Remove stars if we have to since the button acts as a toggle.
-        if ((prevStars >= nStars) && (prevStars != 2 || nStars != 1)) {
-            chunk.before = chunk.before.replace(re("[*]{" + nStars + "}$", ""), "");
-            chunk.after = chunk.after.replace(re("^[*]{" + nStars + "}", ""), "");
+        if ((prev >= howMany) && (prev != 2 || howMany != 1)) {
+            chunk.before = chunk.before.replace(new re(escapeRegExp(charsLeft) + "$", ""), "");
+            chunk.after = chunk.after.replace(new re("^" + escapeRegExp(charsRight), ""), "");
         }
-        else if (!chunk.selection && starsAfter) {
+        else if (0 && !chunk.selection && after) {
             // It's not really clear why this code is necessary.  It just moves
             // some arbitrary stuff around.
             chunk.after = chunk.after.replace(/^([*_]*)/, "");
             chunk.before = chunk.before.replace(/(\s?)$/, "");
             var whitespace = re.$1;
-            chunk.before = chunk.before + starsAfter + whitespace;
+            chunk.before = chunk.before + after + whitespace;
         }
         else {
 
             // In most cases, if you don't have any selected text and click the button
             // you'll get a selected, marked up region with the default text inserted.
-            if (!chunk.selection && !starsAfter) {
+            if (!chunk.selection && !after) {
                 chunk.selection = insertText;
             }
 
             // Add the true markup.
-            var markup = nStars <= 1 ? "*" : "**"; // shouldn't the test be = ?
-            chunk.before = chunk.before + markup;
-            chunk.after = markup + chunk.after;
+            chunk.before = chunk.before + charsLeft;
+            chunk.after = charsRight + chunk.after;
         }
 
-        return;
+        this.finish();
     };
 
     commandProto.stripLinkDefs = function (text, defsToAdd) {
@@ -1483,7 +1490,18 @@ if (!String.prototype.trim) {
         });
     }
 
-    commandProto.doLinkOrImage = function (chunk, postProcessing, isImage) {
+    commandProto.doLink = function () {
+        this.doLinkOrImage(false);
+    };
+
+    commandProto.doImage = function (chunk, postProcessing) {
+        this.doLinkOrImage(true);
+    };
+
+    commandProto.doLinkOrImage = function (isImage) {
+
+        this.initiate();
+        var self = this, chunk = this.chunk;
 
         chunk.trimWhitespace();
         chunk.findTags(/\s*!?\[/, /\][ ]?(?:\n[ ]*)?(\[.*?\])?/);
@@ -1551,7 +1569,7 @@ if (!String.prototype.trim) {
                         }
                     }
                 }
-                postProcessing();
+                self.finish();
             };
 
             background = ui.createBackground();
@@ -1563,56 +1581,13 @@ if (!String.prototype.trim) {
             else {
                 ui.prompt(this.getString("linkdialog"), linkDefaultText, linkEnteredCallback);
             }
-            return true;
         }
     };
 
-    // When making a list, hitting shift-enter will put your cursor on the next line
-    // at the current indent level.
-    commandProto.doAutoindent = function (chunk, postProcessing) {
+    commandProto.doBlockquote = function () {
 
-        var commandMgr = this,
-            fakeSelection = false;
-
-        chunk.before = chunk.before.replace(/(\n|^)[ ]{0,3}([*+-]|\d+[.])[ \t]*\n$/, "\n\n");
-        chunk.before = chunk.before.replace(/(\n|^)[ ]{0,3}>[ \t]*\n$/, "\n\n");
-        chunk.before = chunk.before.replace(/(\n|^)[ \t]+\n$/, "\n\n");
-        
-        // There's no selection, end the cursor wasn't at the end of the line:
-        // The user wants to split the current list item / code line / blockquote line
-        // (for the latter it doesn't really matter) in two. Temporarily select the
-        // (rest of the) line to achieve this.
-        if (!chunk.selection && !/^[ \t]*(?:\n|$)/.test(chunk.after)) {
-            chunk.after = chunk.after.replace(/^[^\n]*/, function (wholeMatch) {
-                chunk.selection = wholeMatch;
-                return "";
-            });
-            fakeSelection = true;
-        }
-
-        if (/(\n|^)[ ]{0,3}([*+-]|\d+[.])[ \t]+.*\n$/.test(chunk.before)) {
-            if (commandMgr.doList) {
-                commandMgr.doList(chunk);
-            }
-        }
-        if (/(\n|^)[ ]{0,3}>[ \t]+.*\n$/.test(chunk.before)) {
-            if (commandMgr.doBlockquote) {
-                commandMgr.doBlockquote(chunk);
-            }
-        }
-        if (/(\n|^)(\t|[ ]{4,}).*\n$/.test(chunk.before)) {
-            if (commandMgr.doCode) {
-                commandMgr.doCode(chunk);
-            }
-        }
-        
-        if (fakeSelection) {
-            chunk.after = chunk.selection + chunk.after;
-            chunk.selection = "";
-        }
-    };
-
-    commandProto.doBlockquote = function (chunk, postProcessing) {
+        this.initiate();
+        var chunk = this.chunk;
 
         chunk.selection = chunk.selection.replace(/^(\n*)([^\r]+?)(\n*)$/,
             function (totalMatch, newlinesBefore, text, newlinesAfter) {
@@ -1754,10 +1729,14 @@ if (!String.prototype.trim) {
                 return "";
             });
         }
+
+        this.finish();
     };
 
-    commandProto.doCode = function (chunk, postProcessing) {
+    commandProto.doCode = function () {
 
+        this.initiate();
+        var self = this, chunk = this.chunk;
         var hasTextBefore = /\S[ ]*$/.test(chunk.before);
         var hasTextAfter = /^[ ]*\S/.test(chunk.after);
 
@@ -1819,175 +1798,9 @@ if (!String.prototype.trim) {
                 chunk.startTag = chunk.endTag = "";
             }
         }
+
+        this.finish();
     };
-
-    commandProto.doList = function (chunk, postProcessing, isNumberedList) {
-
-        // These are identical except at the very beginning and end.
-        // Should probably use the regex extension function to make this clearer.
-        var previousItemsRegex = /(\n|^)(([ ]{0,3}([*+-]|\d+[.])[ \t]+.*)(\n.+|\n{2,}([*+-].*|\d+[.])[ \t]+.*|\n{2,}[ \t]+\S.*)*)\n*$/;
-        var nextItemsRegex = /^\n*(([ ]{0,3}([*+-]|\d+[.])[ \t]+.*)(\n.+|\n{2,}([*+-].*|\d+[.])[ \t]+.*|\n{2,}[ \t]+\S.*)*)\n*/;
-
-        // The default bullet is a dash but others are possible.
-        // This has nothing to do with the particular HTML bullet,
-        // it's just a markdown bullet.
-        var bullet = "-";
-
-        // The number in a numbered list.
-        var num = 1;
-
-        // Get the item prefix - e.g. " 1. " for a numbered list, " - " for a bulleted list.
-        var getItemPrefix = function () {
-            var prefix;
-            if (isNumberedList) {
-                prefix = " " + num + ". ";
-                num++;
-            }
-            else {
-                prefix = " " + bullet + " ";
-            }
-            return prefix;
-        };
-
-        // Fixes the prefixes of the other list items.
-        var getPrefixedItem = function (itemText) {
-
-            // The numbering flag is unset when called by autoindent.
-            if (isNumberedList === undefined) {
-                isNumberedList = /^\s*\d/.test(itemText);
-            }
-
-            // Renumber/bullet the list element.
-            itemText = itemText.replace(/^[ ]{0,3}([*+-]|\d+[.])\s/gm,
-                function (_) {
-                    return getItemPrefix();
-                });
-
-            return itemText;
-        };
-
-        chunk.findTags(/(\n|^)*[ ]{0,3}([*+-]|\d+[.])\s+/, null);
-
-        if (chunk.before && !/\n$/.test(chunk.before) && !/^\n/.test(chunk.startTag)) {
-            chunk.before += chunk.startTag;
-            chunk.startTag = "";
-        }
-
-        if (chunk.startTag) {
-
-            var hasDigits = /\d+[.]/.test(chunk.startTag);
-            chunk.startTag = "";
-            chunk.selection = chunk.selection.replace(/\n[ ]{4}/g, "\n");
-            this.unwrap(chunk);
-            chunk.skipLines();
-
-            if (hasDigits) {
-                // Have to renumber the bullet points if this is a numbered list.
-                chunk.after = chunk.after.replace(nextItemsRegex, getPrefixedItem);
-            }
-            if (isNumberedList == hasDigits) {
-                return;
-            }
-        }
-
-        var nLinesUp = 1;
-
-        chunk.before = chunk.before.replace(previousItemsRegex,
-            function (itemText) {
-                if (/^\s*([*+-])/.test(itemText)) {
-                    bullet = re.$1;
-                }
-                nLinesUp = /[^\n]\n\n[^\n]/.test(itemText) ? 1 : 0;
-                return getPrefixedItem(itemText);
-            });
-
-        if (!chunk.selection) {
-            chunk.selection = this.getString("litem");
-        }
-
-        var prefix = getItemPrefix();
-
-        var nLinesDown = 1;
-
-        chunk.after = chunk.after.replace(nextItemsRegex,
-            function (itemText) {
-                nLinesDown = /[^\n]\n\n[^\n]/.test(itemText) ? 1 : 0;
-                return getPrefixedItem(itemText);
-            });
-
-        chunk.trimWhitespace(true);
-        chunk.skipLines(nLinesUp, nLinesDown, true);
-        chunk.startTag = prefix;
-        var spaces = prefix.replace(/./g, " ");
-        this.wrap(chunk, SETTINGS.lineLength - spaces.length);
-        chunk.selection = chunk.selection.replace(/\n/g, "\n" + spaces);
-
-    };
-
-    commandProto.doHeading = function (chunk, postProcessing) {
-
-        // Remove leading/trailing whitespace and reduce internal spaces to single spaces.
-        chunk.selection = chunk.selection.replace(/\s+/g, " ");
-        chunk.selection = chunk.selection.replace(/(^\s+|\s+$)/g, "");
-
-        // If we clicked the button with no selected text, we just
-        // make a level 2 hash header around some default text.
-        if (!chunk.selection) {
-            chunk.startTag = "## ";
-            chunk.selection = this.getString("headingexample");
-            chunk.endTag = " ##";
-            return;
-        }
-
-        var headerLevel = 0;     // The existing header level of the selected text.
-
-        // Remove any existing hash heading markdown and save the header level.
-        chunk.findTags(/#+[ ]*/, /[ ]*#+/);
-        if (/#+/.test(chunk.startTag)) {
-            headerLevel = re.lastMatch.length;
-        }
-        chunk.startTag = chunk.endTag = "";
-
-        // Try to get the current header level by looking for - and = in the line
-        // below the selection.
-        chunk.findTags(null, /\s?(-+|=+)/);
-        if (/=+/.test(chunk.endTag)) {
-            headerLevel = 1;
-        }
-        if (/-+/.test(chunk.endTag)) {
-            headerLevel = 2;
-        }
-
-        // Skip to the next line so we can create the header markdown.
-        chunk.startTag = chunk.endTag = "";
-        chunk.skipLines(1, 1);
-
-        // We make a level 2 header if there is no current header.
-        // If there is a header level, we substract one from the header level.
-        // If it's already a level 1 header, it's removed.
-        var headerLevelToCreate = headerLevel == 0 ? 2 : headerLevel - 1;
-
-        if (headerLevelToCreate > 0) {
-
-            // The button only creates level 1 and 2 underline headers.
-            // Why not have it iterate over hash header levels?  Wouldn't that be easier and cleaner?
-            var headerChar = headerLevelToCreate >= 2 ? "-" : "=";
-            var len = chunk.selection.length;
-            if (len > SETTINGS.lineLength) {
-                len = SETTINGS.lineLength;
-            }
-            chunk.endTag = "\n";
-            while (len--) {
-                chunk.endTag += headerChar;
-            }
-        }
-    };
-
-    commandProto.doHorizontalRule = function (chunk, postProcessing) {
-        chunk.startTag = "----------\n";
-        chunk.selection = "";
-        chunk.skipLines(2, 1, true);
-    }
 
 
 })(Markdown);
