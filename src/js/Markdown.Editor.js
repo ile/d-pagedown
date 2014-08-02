@@ -140,7 +140,7 @@ if (!String.prototype.trim) {
             if (this.panels)
                 return; // already initialized
 
-            this.panels = new PanelCollection();
+            this.panels = new PanelCollection(this);
             this.commandManager = new CommandManager(this, hooks, getString);
 
             if (!/\?noundo/.test(doc.location.href)) {
@@ -304,16 +304,18 @@ if (!String.prototype.trim) {
     // This ONLY affects Internet Explorer (tested on versions 6, 7
     // and 8) and ONLY on button clicks.  Keyboard shortcuts work
     // normally since the focus never leaves the textarea.
-    function PanelCollection() {
+    function PanelCollection(editor) {
         var self = this,
             id = 'wmd-button-bar';
 
+        this.input = doc.getElementById("wmd-input");
         this.buttonBar = doc.getElementById(id);
+
         this.buttonBar.contains = function(n) {
-            if ((n && n.id === id) || (n.parentNode && n.parentNode.id === id) || (n.parentNode.parentNode && n.parentNode.parentNode.id === id)) {
+            if ((n && n.id === id) || (n.parentNode && n.parentNode.id === id) || (n.parentNode.parentNode && n.parentNode.parentNode.id === id) || (n.parentNode.parentNode.parentNode && n.parentNode.parentNode.parentNode.id === id)) {
                 return true;
             }
-        }
+        };
 
         this.buttonBar.show = function() {
 
@@ -345,7 +347,45 @@ if (!String.prototype.trim) {
             this.className = this.className.replace(' show', '');
         };
 
-        this.input = doc.getElementById("wmd-input");
+        function showToolbarIfNeeded(e) {
+            if (!e.shiftKey) {
+                setTimeout(function () {
+                    var sel = window.getSelection(),
+                        s = sel? sel.toString().trim().length: false;
+
+                    // show toolbar if text is selected
+                    if (s) {
+                        editor.panels.buttonBar.show();
+                    }
+                    else {
+                        editor.panels.buttonBar.hide();
+                    }
+                }, 0);
+            }
+        }
+
+        util.addEvent(this.input, 'keydown', function(e) {
+            var keyCode = event.charCode || event.keyCode;
+
+            self.buttonBar.hide();
+
+            // clear selection
+            if (keyCode === 27) {
+
+            }
+        });
+
+        util.addEvent(this.input, 'keyup', showToolbarIfNeeded);
+        util.addEvent(document, 'mousedown', function(e) {
+            console.log(e);
+            var t = e.srcElement || e.target;
+
+            console.log(self.buttonBar.contains(t));
+            if (!self.buttonBar.contains(t)) {
+                self.buttonBar.hide.call(self.buttonBar);
+            }
+        });
+        util.addEvent(this.input, 'mouseup', showToolbarIfNeeded);
 
         // caret position
         this.caretPosition = new CaretPosition(this.input);
@@ -1128,8 +1168,6 @@ if (!String.prototype.trim) {
                 }
             }
 
-            editor.panels.buttonBar.hide();
-
             // Check to see if we have a button key and, if so execute the callback.
             if ((key.ctrlKey || key.metaKey) && !key.altKey && !key.shiftKey) {
 
@@ -1152,33 +1190,6 @@ if (!String.prototype.trim) {
                     default:
                         return;
                 }
-            }
-        });
-
-        function showToolbarIfNeeded(e) {
-            if (!e.shiftKey) {
-                setTimeout(function () {
-                    var sel = window.getSelection(),
-                        s = sel? sel.toString().trim().length: false;
-
-                    // show toolbar if text is selected
-                    if (s) {
-                        editor.panels.buttonBar.show();
-                    }
-                    else {
-                        editor.panels.buttonBar.hide();
-                    }
-                }, 0);
-            }
-        }
-
-        util.addEvent(inputBox, 'mouseup', showToolbarIfNeeded);
-        util.addEvent(inputBox, 'keyup', showToolbarIfNeeded);
-        util.addEvent(document, 'mousedown', function(e) {
-            var t = e.srcElement || e.target;
-
-            if (!editor.panels.buttonBar.contains(t)) {
-                editor.panels.buttonBar.hide.call(editor.panels.buttonBar);
             }
         });
 
