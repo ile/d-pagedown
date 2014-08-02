@@ -10,7 +10,7 @@ DerbyPageDown.prototype.init = function(model) {
 };
 
 DerbyPageDown.prototype.create = function(model) {
-	Editor = require("./Markdown.Editor");
+	Editor = require("./src/js/Markdown.Editor");
 	editor = this.editor = new Editor(this);
 	editor.run();
 	this.expandingArea.className += " active";
