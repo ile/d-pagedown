@@ -1348,17 +1348,18 @@ if (!String.prototype.trim) {
     };
 
     commandProto.doBold = function () {
-        return this.doWrap('**', '**', this.getString("boldexample"));
+        return this.doWrap('**', '**', this.getString("boldexample"), true);
     };
 
     commandProto.doItalic = function () {
-        return this.doWrap('*', '*', this.getString("italicexample"));
+        return this.doWrap('*', '*', this.getString("italicexample"), true);
     };
 
-    commandProto.doWrap = function (charsLeft, charsRight, insertText) {
+    commandProto.doWrap = function (charsLeft, charsRight, insertText, toggle) {
         var howMany = charsLeft.length,
             charLeft = charsLeft.charAt(0),
-            charRight = charsRight.charAt(0);
+            charRight = charsRight.charAt(0),
+            before, after, prev;
 
         this.initiate();
         var chunk = this.chunk;
@@ -1369,24 +1370,25 @@ if (!String.prototype.trim) {
 
         // Look for stars before and after.  Is the chunk already marked up?
         // note that these regex matches cannot fail
-        var before = new RegExp(util.escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
-        var after = new RegExp("^" + util.escapeRegExp(charRight) + "*").exec(chunk.after)[0];
-
-        var prev = Math.min(before.length, after.length);
+        if (toggle) {
+            before = new RegExp(util.escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
+            after = new RegExp("^" + util.escapeRegExp(charRight) + "*").exec(chunk.after)[0];
+            prev = Math.min(before.length, after.length);
+        }
 
         // Remove stars if we have to since the button acts as a toggle.
-        if ((prev >= howMany) && (prev != 2 || howMany != 1)) {
+        if (toggle && (prev >= howMany) && (prev != 2 || howMany != 1)) {
             chunk.before = chunk.before.replace(new re(util.escapeRegExp(charsLeft) + "$", ""), "");
             chunk.after = chunk.after.replace(new re("^" + util.escapeRegExp(charsRight), ""), "");
         }
-        else if (0 && !chunk.selection && after) {
-            // It's not really clear why this code is necessary.  It just moves
-            // some arbitrary stuff around.
-            chunk.after = chunk.after.replace(/^([*_]*)/, "");
-            chunk.before = chunk.before.replace(/(\s?)$/, "");
-            var whitespace = re.$1;
-            chunk.before = chunk.before + after + whitespace;
-        }
+        // else if (0 && !chunk.selection && after) {
+        //     // It's not really clear why this code is necessary.  It just moves
+        //     // some arbitrary stuff around.
+        //     chunk.after = chunk.after.replace(/^([*_]*)/, "");
+        //     chunk.before = chunk.before.replace(/(\s?)$/, "");
+        //     var whitespace = re.$1;
+        //     chunk.before = chunk.before + after + whitespace;
+        // }
         else {
 
             // In most cases, if you don't have any selected text and click the button
