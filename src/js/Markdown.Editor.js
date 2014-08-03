@@ -335,7 +335,7 @@ if (!String.prototype.trim) {
                 // console.log('middleBoundary: '+middleBoundary);
                 // console.log('halfWidth: '+halfWidth);
 
-                // this.style.top = (boundary.top - 10 - this.offsetHeight) + 'px';
+                // save the selection info for later use
                 this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
                 this.style.top = (boundary.top - 10) + 'px';
                 this.style.left = (middleBoundary - halfWidth) + 'px';
@@ -345,6 +345,10 @@ if (!String.prototype.trim) {
 
         this.buttonBar.hide = function() {
             this.className = this.className.replace(' show', '');
+        };
+
+        this.input.clearSelection = function() {
+            self.input.selectionEnd = self.input.selectionStart;
         };
 
         function showToolbarIfNeeded(e) {
@@ -371,7 +375,7 @@ if (!String.prototype.trim) {
 
             // clear selection
             if (keyCode === 27) {
-
+                self.input.clearSelection();
             }
         });
 
@@ -380,7 +384,6 @@ if (!String.prototype.trim) {
             console.log(e);
             var t = e.srcElement || e.target;
 
-            console.log(self.buttonBar.contains(t));
             if (!self.buttonBar.contains(t)) {
                 self.buttonBar.hide.call(self.buttonBar);
             }
