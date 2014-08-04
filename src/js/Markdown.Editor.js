@@ -323,6 +323,11 @@ if (!String.prototype.trim) {
 					middleBoundary = (boundary.right + boundary.left) / 2,
 					halfWidth = this.offsetWidth / 2;
 
+				console.log(boundary);
+				console.log('left: '+(middleBoundary - halfWidth));
+				console.log('middleBoundary: '+middleBoundary);
+				console.log('halfWidth: '+halfWidth);
+
 				// save the selection info for later use
 				this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
 				this.style.top = (boundary.top - 10) + 'px';
@@ -341,7 +346,6 @@ if (!String.prototype.trim) {
 		};
 
 		this.buttonBar.hide = function() {
-			console.log('buttonBar.hide');
 			this.className = this.className.replace(' show', '');
 		};
 
@@ -588,8 +592,6 @@ if (!String.prototype.trim) {
 		// Removes the last state and restores it.
 		this.undo = function () {
 
-			console.log('undo, can = ' + undoObj.canUndo());
-
 			if (undoObj.canUndo()) {
 				if (lastState) {
 					// What about setting state -1 to null or checking for undefined?
@@ -613,8 +615,6 @@ if (!String.prototype.trim) {
 
 		// Redo an action.
 		this.redo = function () {
-			console.log('redo '+stackPtr);
-
 			if (undoObj.canRedo()) {
 
 				undoStack[++stackPtr].restore();
@@ -631,7 +631,6 @@ if (!String.prototype.trim) {
 
 		// Push the input area state to the stack.
 		var saveState = function () {
-			console.log('saveState');
 			var currState = inputStateObj || new TextareaState(panels);
 
 			if (!currState) {
@@ -654,8 +653,6 @@ if (!String.prototype.trim) {
 			if (callback) {
 				callback();
 			}
-
-			console.log('stackPtr = '+stackPtr);
 		};
 
 		var handleCtrlYZ = function (event) {
@@ -1304,7 +1301,6 @@ if (!String.prototype.trim) {
 	// no real workaround.  Only the image and link code
 	// create dialogs and require the function pointers.
 	commandProto.initiate = function(state, chunks) {
-		console.log('commandProto.initiate');
 		this.state = new TextareaState(this.editor.panels);
 
 		if (this.state) {
@@ -1313,7 +1309,6 @@ if (!String.prototype.trim) {
 	};
 
 	commandProto.finish = function(state, chunks) {
-		console.log('commandProto.finish');
 		this.editor.panels.input.focus();
 
 		if (this.chunk) {
