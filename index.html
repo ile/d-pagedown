@@ -1,6 +1,13 @@
 <index:>
 	<div as="expandingArea" class="d-textarea">
-		<!-- <div id="selection-position" as="selectionStart"><span as="selectionEnd"></span></div> -->
 		<pre><span>{{@text}}</span><br></pre>
 		<textarea on-keydown="emitKeydown($event, $element)" id="{{@id}}" disabled="{{@disabled}}" name="{{@name_}}" placeholder="{{@placeholder}}" class="{{@class}}">{{@text}}</textarea>
+	</div>
+	<div id="wmd-button-bar">
+		<ul class="wmd-button-row">
+			<li class="wmd-button wmd-button-enabled" id="wmd-bold-button" data-cmd="bold" data-key="b"><span class="fa fa-bold"></span></li>
+			<li class="wmd-button wmd-button-enabled" id="wmd-italic-button" data-cmd="italic" data-key="i"><span class="fa fa-italic"></span></li>
+			<li class="wmd-button wmd-button-enabled" id="wmd-link-button" data-cmd="link" data-key="k"><span class="fa fa-link"></span></li>
+			<li class="wmd-button wmd-button-enabled" id="wmd-quote-button" data-cmd="quote" data-key="q"><span class="fa fa-quote-right"></span></li>
+		</ul>
 	</div>

@@ -113,7 +113,6 @@ if (!String.prototype.trim) {
 	Markdown.Editor = function (derbyPageDown) {
 		
 		var options = {};
-		var idPostfix = "";
 		this.derbyPageDown = derbyPageDown;
 
 		if (typeof options.handler === "function") { //backwards compatible behavior
@@ -124,7 +123,7 @@ if (!String.prototype.trim) {
 			options.strings.help = options.strings.help || options.helpButton.title;
 		}
 
-		var getString = function (identifier) { return options.strings[identifier] || defaultsStrings[identifier]; };
+		this.getString = function (identifier) { return options.strings[identifier] || defaultsStrings[identifier]; };
 
 
 		var hooks = this.hooks = new Markdown.HookCollection();
@@ -141,7 +140,7 @@ if (!String.prototype.trim) {
 				return; // already initialized
 
 			this.panels = new PanelCollection(this);
-			this.commandManager = new CommandManager(this, hooks, getString);
+			this.commandManager = new CommandManager(this, hooks);
 
 			if (!/\?noundo/.test(doc.location.href)) {
 				this.undoManager = new UndoManager(function () { }, this.panels);
@@ -151,7 +150,7 @@ if (!String.prototype.trim) {
 				};
 			}
 
-			this.uiManager = new UIManager(this, idPostfix, options.helpButton, getString);
+			this.uiManager = new UIManager(this);
 		};
 
 	};
@@ -309,7 +308,10 @@ if (!String.prototype.trim) {
 			id = 'wmd-button-bar';
 
 		this.input = doc.getElementById("wmd-input");
+		this.caretPosition = new CaretPosition(this.input);
 		this.buttonBar = doc.getElementById(id);
+		console.log(this.buttonBar);
+		console.dir(this.buttonBar);
 
 		this.buttonBar.contains = function(n) {
 			if ((n && n.id === id) || (n.parentNode && n.parentNode.id === id) || (n.parentNode.parentNode && n.parentNode.parentNode.id === id) || (n.parentNode.parentNode.parentNode && n.parentNode.parentNode.parentNode.id === id)) {
@@ -386,9 +388,6 @@ if (!String.prototype.trim) {
 			}
 		});
 		util.addEvent(this.input, 'mouseup', showToolbarIfNeeded);
-
-		// caret position
-		this.caretPosition = new CaretPosition(this.input);
 	}
 
 	// Returns true if the DOM element is visible, false if it's hidden.
@@ -474,20 +473,7 @@ if (!String.prototype.trim) {
 	};
 
 	util.escapeRegExp = function (string) {
-	  return string.replace(/([.*+?^${}()|\[\]\/\\])/g, "\\$1");
-	};
-
-	// UNFINISHED
-	// The assignment in the while loop makes jslint cranky.
-	// I'll change it to a better loop later.
-	position.getTop = function (elem, isInner) {
-		var result = elem.offsetTop;
-		if (!isInner) {
-			while (elem = elem.offsetParent) {
-				result += elem.offsetTop;
-			}
-		}
-		return result;
+		return string.replace(/([.*+?^${}()|\[\]\/\\])/g, "\\$1");
 	};
 
 	position.getHeight = function (elem) {
@@ -496,46 +482,6 @@ if (!String.prototype.trim) {
 
 	position.getWidth = function (elem) {
 		return elem.offsetWidth || elem.scrollWidth;
-	};
-
-	position.getPageSize = function () {
-
-		var scrollWidth, scrollHeight;
-		var innerWidth, innerHeight;
-
-		// It's not very clear which blocks work with which browsers.
-		if (self.innerHeight && self.scrollMaxY) {
-			scrollWidth = doc.body.scrollWidth;
-			scrollHeight = self.innerHeight + self.scrollMaxY;
-		}
-		else if (doc.body.scrollHeight > doc.body.offsetHeight) {
-			scrollWidth = doc.body.scrollWidth;
-			scrollHeight = doc.body.scrollHeight;
-		}
-		else {
-			scrollWidth = doc.body.offsetWidth;
-			scrollHeight = doc.body.offsetHeight;
-		}
-
-		if (self.innerHeight) {
-			// Non-IE browser
-			innerWidth = self.innerWidth;
-			innerHeight = self.innerHeight;
-		}
-		else if (doc.documentElement && doc.documentElement.clientHeight) {
-			// Some versions of IE (IE 6 w/ a DOCTYPE declaration)
-			innerWidth = doc.documentElement.clientWidth;
-			innerHeight = doc.documentElement.clientHeight;
-		}
-		else if (doc.body) {
-			// Other versions of IE
-			innerWidth = doc.body.clientWidth;
-			innerHeight = doc.body.clientHeight;
-		}
-
-		var maxWidth = Math.max(scrollWidth, innerWidth);
-		var maxHeight = Math.max(scrollHeight, innerHeight);
-		return [maxWidth, maxHeight, innerWidth, innerHeight];
 	};
 
 	// Handles pushing and popping TextareaStates for undo/redo commands.
@@ -911,46 +857,6 @@ if (!String.prototype.trim) {
 		this.init();
 	};
 
-
-	// Creates the background behind the hyperlink text entry box.
-	// And download dialog
-	// Most of this has been moved to CSS but the div creation and
-	// browser-specific hacks remain here.
-	ui.createBackground = function () {
-
-		var background = doc.createElement("div"),
-			style = background.style;
-		
-		background.className = "wmd-prompt-background";
-		
-		style.position = "absolute";
-		style.top = "0";
-
-		style.zIndex = "1000";
-
-		if (uaSniffed.isIE) {
-			style.filter = "alpha(opacity=50)";
-		}
-		else {
-			style.opacity = "0.5";
-		}
-
-		var pageSize = position.getPageSize();
-		style.height = pageSize[1] + "px";
-
-		if (uaSniffed.isIE) {
-			style.left = doc.documentElement.scrollLeft;
-			style.width = doc.documentElement.clientWidth;
-		}
-		else {
-			style.left = "0";
-			style.width = "100%";
-		}
-
-		doc.body.appendChild(background);
-		return background;
-	};
-
 	// This simulates a modal dialog box and asks for the URL when you
 	// click the hyperlink or image buttons.
 	//
@@ -1111,13 +1017,48 @@ if (!String.prototype.trim) {
 		}, 0);
 	};
 
-	function UIManager(editor, postfix, helpOptions, getString) {
+	function UIManager(editor) {
 
 		var timer,
 			inputBox = editor.panels.input,
-			buttons = {}; // buttons.undo, buttons.link, etc. The actual DOM elements.
+			buttonBar = editor.panels.buttonBar;
 
-		makeSpritedButtonRow();
+		function getButton(t) {
+			if (!t) return;
+
+			if (t.nodeName === 'LI') {
+				return t;
+			}
+			else {
+				return getButton(t.parentNode);
+			}
+		}
+
+		function hotkeyPressed(key, e) {
+			e.preventDefault();
+			var t = getButton(buttonBar.querySelector("li[data-key='" + key + "']"));
+
+			if (t) {
+				clickButton(t);
+			}
+		}
+
+		function buttonClicked(e) {
+			var t = getButton(e.target || e.srcElement);
+
+			if (t) {
+				editor.panels.buttonBar.hide();
+				clickButton(t);
+			}
+		}
+
+		function clickButton(button) {
+			editor.commandManager.doClick(button.getAttribute('data-cmd'));
+
+			if (window.event) {
+				window.event.returnValue = false;
+			}
+		}
 
 		util.addEvent(inputBox, "keypress", function (evt) {
 			var charCode = evt.keyCode || evt.which,
@@ -1150,39 +1091,14 @@ if (!String.prototype.trim) {
 			}
 		});
 
-		util.addEvent(inputBox, uaSniffed.isOpera? "keypress": "keydown", function (key) {
-
-			function done(button) {
-				editor.commandManager.doClick(button);
-				key.preventDefault();
-
-				if (window.event) {
-					window.event.returnValue = false;
-				}
-			}
-
+		util.addEvent(inputBox, uaSniffed.isOpera? "keypress": "keydown", function (e) {
 			// Check to see if we have a button key and, if so execute the callback.
-			if ((key.ctrlKey || key.metaKey) && !key.altKey && !key.shiftKey) {
+			if ((e.ctrlKey || e.metaKey) && !e.altKey && !e.shiftKey) {
 
-				var keyCode = key.charCode || key.keyCode,
+				var keyCode = e.charCode || e.keyCode,
 					keyCodeStr = String.fromCharCode(keyCode).toLowerCase();
 
-				switch (keyCodeStr) {
-					case "b":
-						done(buttons.bold);
-						break;
-					case "i":
-						done(buttons.italic);
-						break;
-					case "l":
-						done(buttons.link);
-						break;
-					case "q":
-						done(buttons.quote);
-						break;
-					default:
-						return;
-				}
+				if (['b', 'i', 'l', 'q'].indexOf(keyCodeStr) !== -1) hotkeyPressed(keyCodeStr, e);
 			}
 		});
 
@@ -1196,65 +1112,14 @@ if (!String.prototype.trim) {
 			});
 		}
 
-		function setupButton(button, isEnabled) {
-
-			var image = button.getElementsByTagName("span")[0];
-			if (isEnabled) {
-				button.className += ' wmd-button-enabled';
-			}
-			else {
-				button.className += button.className.replace(' wmd-button-enabled', '');
-			}
-
-			button.onclick = function () {
-				editor.panels.buttonBar.hide();
-				editor.commandManager.doClick(this);
-			};
-		}
-
-		function bindCommand(method) {
-			if (typeof method === "string")
-				method = editor.commandManager[method];
-			return function () { method.apply(editor.commandManager, arguments); };
-		}
-
-		function makeSpritedButtonRow() {
-
-			var buttonBar = editor.panels.buttonBar;
-			var buttonRow = document.createElement("ul");
-			buttonRow.className = 'wmd-button-row wmd-button-row' + postfix;
-			buttonRow = buttonBar.appendChild(buttonRow);
-
-			var makeButton = function (id, className, textOp, hidden) {
-				var button = document.createElement("li");
-				button.className = "wmd-button" + (hidden? ' wmd-button-hidden': '');
-				button.id = id + postfix;
-				var buttonImage = document.createElement("span");
-				buttonImage.className = "fa " + className;
-				button.appendChild(buttonImage);
-				if (textOp)
-					button.textOp = textOp;
-				setupButton(button, true);
-				if (!hidden) buttonRow.appendChild(button);
-
-				return button;
-			};
-
-			buttons.bold = makeButton("wmd-bold-button", "fa-bold", bindCommand("doBold"));
-			buttons.italic = makeButton("wmd-italic-button", "fa-italic", bindCommand("doItalic"));
-			buttons.link = makeButton("wmd-link-button", "fa-link", bindCommand("doLink"));
-			buttons.quote = makeButton("wmd-quote-button", "fa-quote-right", bindCommand("doBlockquote"));
-			buttons.undo = makeButton("wmd-undo-button", "", null, true);
-			buttons.undo.execute = function (manager) { if (manager) manager.undo(); };
-			buttons.redo = makeButton("wmd-redo-button", "", null, true);
-			buttons.redo.execute = function (manager) { if (manager) manager.redo(); };
-		}
+		// setup event listeners
+		var el = buttonBar.querySelectorAll('li');
+		for (var i = 0; i < el.length; i++) el[i].addEventListener('click', buttonClicked);
 	}
 
-	function CommandManager(editor, pluginHooks, getString) {
+	function CommandManager(editor, pluginHooks) {
 		this.editor = editor;
 		this.hooks = pluginHooks;
-		this.getString = getString;
 	}
 
 	var commandProto = CommandManager.prototype;
@@ -1321,28 +1186,21 @@ if (!String.prototype.trim) {
 
 
 	// Perform the button's action.
-	commandProto.doClick = function(button) {
+	commandProto.doClick = function(command) {
 		this.editor.panels.input.focus();
 
-		if (button.textOp) {
-
-			if (this.editor.undoManager) {
-				this.editor.undoManager.setCommandMode();
-			}
-
-			button.textOp();
-		}
-		else if (button.execute) {
-			button.execute(this.editor.undoManager);
+		if (this[command]) {
+			if (this.editor.undoManager) this.editor.undoManager.setCommandMode();
+			this[command]();
 		}
 	};
 
-	commandProto.doBold = function () {
-		return this.doWrap('**', '**', this.getString("boldexample"), true);
+	commandProto.bold = function () {
+		return this.doWrap('**', '**', this.editor.getString("boldexample"), true);
 	};
 
-	commandProto.doItalic = function () {
-		return this.doWrap('*', '*', this.getString("italicexample"), true);
+	commandProto.italic = function () {
+		return this.doWrap('*', '*', this.editor.getString("italicexample"), true);
 	};
 
 	commandProto.doWrap = function (charsLeft, charsRight, insertText, toggle) {
@@ -1513,11 +1371,11 @@ if (!String.prototype.trim) {
 		});
 	}
 
-	commandProto.doLink = function () {
+	commandProto.link = function () {
 		this.doLinkOrImage(false);
 	};
 
-	commandProto.doImage = function (chunk, postProcessing) {
+	commandProto.image = function (chunk, postProcessing) {
 		this.doLinkOrImage(true);
 	};
 
@@ -1528,7 +1386,6 @@ if (!String.prototype.trim) {
 
 		chunk.trimWhitespace();
 		chunk.findTags(/\s*!?\[/, /\][ ]?(?:\n[ ]*)?(\[.*?\])?/);
-		var background;
 
 		if (chunk.endTag.length > 1 && chunk.startTag.length > 0) {
 
@@ -1553,8 +1410,6 @@ if (!String.prototype.trim) {
 			// The function to be executed when you enter a link and press OK or Cancel.
 			// Marks up the link and adds the ref.
 			var linkEnteredCallback = function (link) {
-
-				background.parentNode.removeChild(background);
 
 				if (link !== null) {
 					// (                          $1
@@ -1585,29 +1440,27 @@ if (!String.prototype.trim) {
 
 					if (!chunk.selection) {
 						if (isImage) {
-							chunk.selection = that.getString("imagedescription");
+							chunk.selection = that.editor.getString("imagedescription");
 						}
 						else {
-							chunk.selection = that.getString("linkdescription");
+							chunk.selection = that.editor.getString("linkdescription");
 						}
 					}
 				}
 				self.finish();
 			};
 
-			background = ui.createBackground();
-
 			if (isImage) {
 				if (!this.hooks.insertImageDialog(linkEnteredCallback))
-					ui.prompt(this.getString("imagedialog"), imageDefaultText, linkEnteredCallback);
+					ui.prompt(this.editor.getString("imagedialog"), imageDefaultText, linkEnteredCallback);
 			}
 			else {
-				ui.prompt(this.getString("linkdialog"), linkDefaultText, linkEnteredCallback);
+				ui.prompt(this.editor.getString("linkdialog"), linkDefaultText, linkEnteredCallback);
 			}
 		}
 	};
 
-	commandProto.doBlockquote = function () {
+	commandProto.quote = function () {
 
 		this.initiate();
 		var chunk = this.chunk;
@@ -1626,7 +1479,7 @@ if (!String.prototype.trim) {
 			});
 
 		chunk.selection = chunk.selection.replace(/^(\s|>)+$/, "");
-		chunk.selection = chunk.selection || this.getString("quoteexample");
+		chunk.selection = chunk.selection || this.editor.getString("quoteexample");
 
 		// The original code uses a regular expression to find out how much of the
 		// text *directly before* the selection already was a blockquote:
@@ -1756,7 +1609,7 @@ if (!String.prototype.trim) {
 		this.finish();
 	};
 
-	commandProto.doCode = function () {
+	commandProto.code = function () {
 
 		this.initiate();
 		var self = this, chunk = this.chunk;
@@ -1787,7 +1640,7 @@ if (!String.prototype.trim) {
 
 			if (!chunk.selection) {
 				chunk.startTag = "    ";
-				chunk.selection = this.getString("codeexample");
+				chunk.selection = this.editor.getString("codeexample");
 			}
 			else {
 				if (/^[ ]{0,3}\S/m.test(chunk.selection)) {
@@ -1810,7 +1663,7 @@ if (!String.prototype.trim) {
 			if (!chunk.startTag && !chunk.endTag) {
 				chunk.startTag = chunk.endTag = "`";
 				if (!chunk.selection) {
-					chunk.selection = this.getString("codeexample");
+					chunk.selection = this.editor.getString("codeexample");
 				}
 			}
 			else if (chunk.endTag && !chunk.startTag) {
