@@ -1170,6 +1170,7 @@ if (!String.prototype.trim) {
 
 		if (this.state) {
 			this.chunk = this.state.getChunks();
+			return this.chunk;
 		}
 	};
 
@@ -1209,8 +1210,7 @@ if (!String.prototype.trim) {
 			charRight = charsRight.charAt(0),
 			before, after, prev;
 
-		this.initiate();
-		var chunk = this.chunk;
+		var chunk = this.initiate();
 
 		// Get rid of whitespace and fixup newlines.
 		chunk.trimWhitespace();
@@ -1372,17 +1372,15 @@ if (!String.prototype.trim) {
 	}
 
 	commandProto.link = function () {
-		this.doLinkOrImage(false);
+		this.doLinkOrImage('link');
 	};
 
 	commandProto.image = function (chunk, postProcessing) {
-		this.doLinkOrImage(true);
+		this.doLinkOrImage('image');
 	};
 
-	commandProto.doLinkOrImage = function (isImage) {
-
-		this.initiate();
-		var self = this, chunk = this.chunk;
+	commandProto.doLinkOrImage = function (which) {
+		var self = this, chunk = this.initiate();
 
 		chunk.trimWhitespace();
 		chunk.findTags(/\s*!?\[/, /\][ ]?(?:\n[ ]*)?(\[.*?\])?/);
@@ -1435,11 +1433,11 @@ if (!String.prototype.trim) {
 					var linkDef = " [999]: " + properlyEncoded(link);
 
 					var num = that.addLinkDef(chunk, linkDef);
-					chunk.startTag = isImage ? "![" : "[";
+					chunk.startTag = which === 'image' ? "![" : "[";
 					chunk.endTag = "][" + num + "]";
 
 					if (!chunk.selection) {
-						if (isImage) {
+						if (which === 'image') {
 							chunk.selection = that.editor.getString("imagedescription");
 						}
 						else {
@@ -1450,7 +1448,7 @@ if (!String.prototype.trim) {
 				self.finish();
 			};
 
-			if (isImage) {
+			if (which === 'image') {
 				if (!this.hooks.insertImageDialog(linkEnteredCallback))
 					ui.prompt(this.editor.getString("imagedialog"), imageDefaultText, linkEnteredCallback);
 			}
@@ -1461,9 +1459,7 @@ if (!String.prototype.trim) {
 	};
 
 	commandProto.quote = function () {
-
-		this.initiate();
-		var chunk = this.chunk;
+		var chunk = this.initiate();
 
 		chunk.selection = chunk.selection.replace(/^(\n*)([^\r]+?)(\n*)$/,
 			function (totalMatch, newlinesBefore, text, newlinesAfter) {
@@ -1610,9 +1606,7 @@ if (!String.prototype.trim) {
 	};
 
 	commandProto.code = function () {
-
-		this.initiate();
-		var self = this, chunk = this.chunk;
+		var self = this, chunk = this.initiate();
 		var hasTextBefore = /\S[ ]*$/.test(chunk.before);
 		var hasTextAfter = /^[ ]*\S/.test(chunk.after);
 
