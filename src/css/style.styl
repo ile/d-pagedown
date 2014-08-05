@@ -14,10 +14,35 @@ $border-radius = 40px
 	box-shadow 0 0 3px black
 	list-style-type none
 	color #fff
+	background $bgcolor
 
-	&.show
+	input
+		display inline-block
+		background transparent
+		color #fff
+		border none
+		box-shadow none
+		min-width 250px
+
+	#wmd-button-row-link, #wmd-button-row-image
+		margin 0 15px 0 10px
+
+	#wmd-button-row-buttons, #wmd-button-row-link, #wmd-button-row-image
+		display	none
+		white-space nowrap
+
+	&[data-show]
 		visibility visible
 		animation 0.2s toolbar
+
+	&[data-show='buttons'] #wmd-button-row-buttons
+		display block
+
+	&[data-show='link'] #wmd-button-row-link
+		display block
+
+	&[data-show='image'] #wmd-button-row-image
+		display block
 
 	&:before
 		border-width 9px

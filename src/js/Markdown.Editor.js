@@ -14,7 +14,6 @@ if (!String.prototype.trim) {
 
 	var util = {},
 		position = {},
-		ui = {},
 		doc = window.document,
 		re = window.RegExp,
 		nav = window.navigator,
@@ -319,16 +318,18 @@ if (!String.prototype.trim) {
 			}
 		};
 
-		this.buttonBar.show = function() {
+		this.buttonBar.show = function(which) {
+			which = which || 'buttons';
+
 			function calculatePosition() {
 				var boundary = self.caretPosition.get(self.input.selectionStart, self.input.selectionEnd),
 					middleBoundary = (boundary.right + boundary.left) / 2,
 					halfWidth = this.offsetWidth / 2;
 
 				console.log(boundary);
-				console.log('left: '+(middleBoundary - halfWidth));
-				console.log('middleBoundary: '+middleBoundary);
-				console.log('halfWidth: '+halfWidth);
+				// console.log('left: '+(middleBoundary - halfWidth));
+				// console.log('middleBoundary: '+middleBoundary);
+				// console.log('halfWidth: '+halfWidth);
 
 				// save the selection info for later use
 				this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
@@ -337,18 +338,20 @@ if (!String.prototype.trim) {
 			}
 
 			// showing but selection has changed
-			if (this.className.indexOf('show') !== -1 &&
+			// if (this.className.indexOf('show-' + which) !== -1 &&
+			var attr = this.getAttribute('data-show');
+			if (attr === which &&
 				this.sel !== [ self.input.selectionStart, self.input.selectionEnd ]) {
 				calculatePosition.call(this);
 			}
-			else if (this.className.indexOf('show') === -1) {
+			else {
 				calculatePosition.call(this);
-				this.className += ' show';
+				this.setAttribute('data-show', which);
 			}
 		};
 
 		this.buttonBar.hide = function() {
-			this.className = this.className.replace(' show', '');
+			this.removeAttribute('data-show');
 		};
 
 		this.input.clearSelection = function() {
@@ -855,173 +858,15 @@ if (!String.prototype.trim) {
 			this.scrollTop = chunk.scrollTop;
 		};
 		this.init();
-	};
-
-	// This simulates a modal dialog box and asks for the URL when you
-	// click the hyperlink or image buttons.
-	//
-	// text: The html for the input box.
-	// defaultInputText: The default value that appears in the input box.
-	// callback: The function which is executed when the prompt is dismissed, either via OK or Cancel.
-	//      It receives a single argument; either the entered text (if OK was chosen) or null (if Cancel
-	//      was chosen).
-	ui.prompt = function (text, defaultInputText, callback) {
-
-		// These variables need to be declared at this level since they are used
-		// in multiple functions.
-		var dialog;         // The dialog box.
-		var input;         // The text box where you enter the hyperlink.
-
-
-		if (defaultInputText === undefined) {
-			defaultInputText = "";
-		}
-
-		// Used as a keydown event handler. Esc dismisses the prompt.
-		// Key code 27 is ESC.
-		var checkEscape = function (key) {
-			var code = (key.charCode || key.keyCode);
-			if (code === 27) {
-				if (key.stopPropagation) key.stopPropagation();
-				close(true);
-				return false;
-			}
-		};
-
-		// Dismisses the hyperlink input box.
-		// isCancel is true if we don't care about the input text.
-		// isCancel is false if we are going to keep the text.
-		var close = function (isCancel) {
-			util.removeEvent(doc.body, "keyup", checkEscape);
-			var text = input.value;
-
-			if (isCancel) {
-				text = null;
-			}
-			else {
-				// Fixes common pasting errors.
-				text = text.replace(/^http:\/\/(https?|ftp):\/\//, '$1://');
-				if (!/^(?:https?|ftp):\/\//.test(text))
-					text = 'http://' + text;
-			}
-
-			dialog.parentNode.removeChild(dialog);
-
-			callback(text);
-			return false;
-		};
-
-
-
-		// Create the text input box form/window.
-		var createDialog = function () {
-
-			// The main dialog box.
-			dialog = doc.createElement("div");
-			dialog.className = "wmd-prompt-dialog";
-			dialog.style.padding = "10px;";
-			dialog.style.position = "fixed";
-			dialog.style.width = "400px";
-			dialog.style.zIndex = "1001";
-
-			// The dialog text.
-			var question = doc.createElement("div");
-			question.innerHTML = text;
-			question.style.padding = "5px";
-			dialog.appendChild(question);
-
-			// The web form container for the text box and buttons.
-			var form = doc.createElement("form"),
-				style = form.style;
-			form.onsubmit = function () { return close(false); };
-			style.padding = "0";
-			style.margin = "0";
-			style.cssFloat = "left";
-			style.width = "100%";
-			style.textAlign = "center";
-			style.position = "relative";
-			dialog.appendChild(form);
-
-			// The input text box
-			input = doc.createElement("input");
-			input.type = "text";
-			input.value = defaultInputText;
-			style = input.style;
-			style.display = "block";
-			style.width = "80%";
-			style.marginLeft = style.marginRight = "auto";
-			form.appendChild(input);
-
-			// The ok button
-			var okButton = doc.createElement("input");
-			okButton.type = "button";
-			okButton.onclick = function () { return close(false); };
-			okButton.value = "OK";
-			style = okButton.style;
-			style.margin = "10px";
-			style.display = "inline";
-			style.width = "7em";
-
-
-			// The cancel button
-			var cancelButton = doc.createElement("input");
-			cancelButton.type = "button";
-			cancelButton.onclick = function () { return close(true); };
-			cancelButton.value = "Cancel";
-			style = cancelButton.style;
-			style.margin = "10px";
-			style.display = "inline";
-			style.width = "7em";
-
-			form.appendChild(okButton);
-			form.appendChild(cancelButton);
-
-			util.addEvent(doc.body, "keyup", checkEscape);
-			dialog.style.top = "50%";
-			dialog.style.left = "50%";
-			dialog.style.display = "block";
-			if (uaSniffed.isIE_5or6) {
-				dialog.style.position = "absolute";
-				dialog.style.top = doc.documentElement.scrollTop + 200 + "px";
-				dialog.style.left = "50%";
-			}
-			doc.body.appendChild(dialog);
-
-			// This has to be done AFTER adding the dialog to the form if you
-			// want it to be centered.
-			dialog.style.marginTop = -(position.getHeight(dialog) / 2) + "px";
-			dialog.style.marginLeft = -(position.getWidth(dialog) / 2) + "px";
-
-		};
-
-		// Why is this in a zero-length timeout?
-		// Is it working around a browser bug?
-		setTimeout(function () {
-
-			createDialog();
-
-			var defTextLen = defaultInputText.length;
-			if (input.selectionStart !== undefined) {
-				input.selectionStart = 0;
-				input.selectionEnd = defTextLen;
-			}
-			else if (input.createTextRange) {
-				var range = input.createTextRange();
-				range.collapse(false);
-				range.moveStart("character", -defTextLen);
-				range.moveEnd("character", defTextLen);
-				range.select();
-			}
-
-			input.focus();
-		}, 0);
-	};
+	}
 
 	function UIManager(editor) {
 
 		var timer,
 			inputBox = editor.panels.input,
 			buttonBar = editor.panels.buttonBar;
+
+		this.editor = editor;
 
 		function getButton(t) {
 			if (!t) return;
@@ -1116,6 +961,68 @@ if (!String.prototype.trim) {
 		var el = buttonBar.querySelectorAll('li');
 		for (var i = 0; i < el.length; i++) el[i].addEventListener('click', buttonClicked);
 	}
+
+	// This simulates a modal dialog box and asks for the URL when you
+	// click the hyperlink or image buttons.
+	//
+	// text: The html for the input box.
+	// defaultInputText: The default value that appears in the input box.
+	// callback: The function which is executed when the prompt is dismissed, either via OK or Cancel.
+	//      It receives a single argument; either the entered text (if OK was chosen) or null (if Cancel
+	//      was chosen).
+	UIManager.prototype.prompt = function (which) {
+
+		// These variables need to be declared at this level since they are used
+		// in multiple functions.
+		var dialog;         // The dialog box.
+		var input;         // The text box where you enter the hyperlink.
+
+		// Used as a keydown event handler. Esc dismisses the prompt.
+		// Key code 27 is ESC.
+		var checkEscape = function (key) {
+			var code = (key.charCode || key.keyCode);
+			if (code === 27) {
+				if (key.stopPropagation) key.stopPropagation();
+				close(true);
+				return false;
+			}
+		};
+
+		// Dismisses the hyperlink input box.
+		// isCancel is true if we don't care about the input text.
+		// isCancel is false if we are going to keep the text.
+		var close = function (isCancel) {
+			util.removeEvent(doc.body, "keyup", checkEscape);
+			var text = input.value;
+
+			if (isCancel) {
+				text = null;
+			}
+			else {
+				// Fixes common pasting errors.
+				text = text.replace(/^http:\/\/(https?|ftp):\/\//, '$1://');
+				if (!/^(?:https?|ftp):\/\//.test(text))
+					text = 'http://' + text;
+			}
+
+			dialog.parentNode.removeChild(dialog);
+
+			callback(text);
+			return false;
+		};
+
+		this.editor.panels.buttonBar.show(which);
+
+		if (input.selectionStart !== undefined && input.createTextRange) {
+			var range = input.createTextRange();
+			range.collapse(false);
+			range.moveStart("character", -defTextLen);
+			range.moveEnd("character", defTextLen);
+			range.select();
+		}
+
+		input.focus();
+	};
 
 	function CommandManager(editor, pluginHooks) {
 		this.editor = editor;
@@ -1372,14 +1279,14 @@ if (!String.prototype.trim) {
 	}
 
 	commandProto.link = function () {
-		this.doLinkOrImage('link');
+		this.linkOrImage('link');
 	};
 
 	commandProto.image = function (chunk, postProcessing) {
-		this.doLinkOrImage('image');
+		this.linkOrImage('image');
 	};
 
-	commandProto.doLinkOrImage = function (which) {
+	commandProto.linkOrImage = function (which) {
 		var self = this, chunk = this.initiate();
 
 		chunk.trimWhitespace();
@@ -1448,13 +1355,7 @@ if (!String.prototype.trim) {
 				self.finish();
 			};
 
-			if (which === 'image') {
-				if (!this.hooks.insertImageDialog(linkEnteredCallback))
-					ui.prompt(this.editor.getString("imagedialog"), imageDefaultText, linkEnteredCallback);
-			}
-			else {
-				ui.prompt(this.editor.getString("linkdialog"), linkDefaultText, linkEnteredCallback);
-			}
+			this.editor.uiManager.prompt(which);
 		}
 	};
 
