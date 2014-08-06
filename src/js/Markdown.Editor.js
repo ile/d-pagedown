@@ -1145,7 +1145,7 @@ if (!String.prototype.trim) {
 
 		function getLinkDef(chunk) {
 			var r1 = /\]\[([\d])\]/,
-				r2 = /\]\[([^\]])\]/,
+				r2 = /\]\[([^\]]+)\]/,
 				m1 = chunk.endTag.match(r1),
 				m2 = chunk.endTag.match(r2),
 				m, link = '';
@@ -1309,10 +1309,14 @@ if (!String.prototype.trim) {
 					}
 				}
 			}
-			else {
+			else if (link === '') {
 				chunk.startTag = chunk.startTag.replace(/!?\[/, "");
 				chunk.endTag = "";
 				addLinkDef(chunk, null);
+			}
+			else {
+				// null (cancel)
+				// do nothing
 			}
 
 			finish(chunk);
