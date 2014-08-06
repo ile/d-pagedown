@@ -18,6 +18,7 @@ if (!String.prototype.trim) {
 		re = window.RegExp,
 		nav = window.navigator,
 		SETTINGS = { lineLength: 72 },
+		editor,
 
 	// Used to work around some browser bugs where we can't use feature testing.
 		uaSniffed = {
@@ -28,7 +29,7 @@ if (!String.prototype.trim) {
 
 	var defaultsStrings = {
 		boldexample: "strong text",
-		italicexample: "emphasized text",
+		italicexample: "italic text",
 		linkdescription: "enter link description here",
 		linkdialog: "<p><b>Insert Hyperlink</b></p><p>http://example.com/ \"optional title\"</p>",
 		quoteexample: "Blockquote",
@@ -132,20 +133,20 @@ if (!String.prototype.trim) {
 												  * image url (or null if the user cancelled). If this hook returns false, the default dialog will be used.
 												  */
 
-		var that = this;
+		editor = this;
 
 		this.run = function () {
 			if (this.panels)
 				return; // already initialized
 
-			this.panels = new PanelCollection(this);
+			this.panels = new PanelCollection();
 			// this.commandManager = new CommandManager(this, hooks);
-			this.commandManager = createCommandManager(this, hooks);
+			this.commandManager = createCommandManager(hooks);
 
 			if (!/\?noundo/.test(doc.location.href)) {
 				this.undoManager = new UndoManager(function () { }, this.panels);
 				this.textOperation = function (f) {
-					that.undoManager.setCommandMode();
+					editor.undoManager.setCommandMode();
 					f();
 				};
 			}
@@ -297,7 +298,7 @@ if (!String.prototype.trim) {
 	// This ONLY affects Internet Explorer (tested on versions 6, 7
 	// and 8) and ONLY on button clicks.  Keyboard shortcuts work
 	// normally since the focus never leaves the textarea.
-	function PanelCollection(editor) {
+	function PanelCollection() {
 		var self = this,
 			id = 'wmd-button-bar';
 
@@ -454,6 +455,22 @@ if (!String.prototype.trim) {
 		}
 	};
 
+	// for derby to take notice of the changed content
+	util.fireInputEvent = function(){
+		var evt;
+
+		if (document.createEventObject){
+			// dispatch for IE
+			evt = document.createEventObject();
+			return editor.input.fireEvent('oninput',evt)
+		}
+		else{
+			// dispatch for firefox + others
+			evt = document.createEvent("HTMLEvents");
+			evt.initEvent('input', true, true ); // event type,bubbling,cancelable
+			return !editor.panels.input.dispatchEvent(evt);
+		}
+	};
 
 	// Adds a listener callback to a DOM element which is fired on a specified
 	// event.
@@ -871,7 +888,6 @@ if (!String.prototype.trim) {
 
 		// Restore this state into the input area.
 		this.restore = function () {
-
 			if (stateObj.text != undefined && stateObj.text != inputArea.value) {
 				inputArea.value = stateObj.text;
 			}
@@ -881,7 +897,6 @@ if (!String.prototype.trim) {
 
 		// Gets a collection of HTML chunks from the inptut textarea.
 		this.getChunks = function () {
-
 			var chunk = new Chunks();
 			chunk.before = util.fixEolChars(stateObj.text.substring(0, stateObj.start));
 			chunk.startTag = "";
@@ -907,13 +922,11 @@ if (!String.prototype.trim) {
 		this.init();
 	}
 
-	function UIManager(editor) {
+	function UIManager() {
 
 		var timer,
 			inputBox = editor.panels.input,
 			toolbar = editor.panels.toolbar;
-
-		this.editor = editor;
 
 		function getButton(t) {
 			if (!t) return;
@@ -946,7 +959,7 @@ if (!String.prototype.trim) {
 		}
 
 		function clickButton(button) {
-			editor.commandManager.doClick(button.getAttribute('data-cmd'));
+			editor.commandManager.doClick(button);
 
 			if (window.event) {
 				window.event.returnValue = false;
@@ -1010,7 +1023,7 @@ if (!String.prototype.trim) {
 		for (var i = 0; i < el.length; i++) el[i].addEventListener('click', buttonClicked);
 	}
 
-	function createCommandManager(editor, pluginHooks) {
+	function createCommandManager(pluginHooks) {
 		var state;
 
 		function CommandManager() {
@@ -1034,6 +1047,7 @@ if (!String.prototype.trim) {
 
 			state.restore();
 			state = null;
+			util.fireInputEvent();
 		}
 
 		var cp = CommandManager.prototype;
@@ -1063,8 +1077,9 @@ if (!String.prototype.trim) {
 		};
 
 		// Perform the button's action.
-		cp.doClick = function(command) {
+		cp.doClick = function(button) {
 			editor.panels.input.focus();
+			var command = button.getAttribute('data-cmd');
 
 			if (this[command]) {
 				if (editor.undoManager) editor.undoManager.setCommandMode();
