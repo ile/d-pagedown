@@ -928,6 +928,7 @@ if (!String.prototype.trim) {
 
 		function hotkeyPressed(key, e) {
 			e.preventDefault();
+			e.stopPropagation();
 			var t = getButton(toolbar.querySelector("li[data-key='" + key + "']"));
 
 			if (t) {
@@ -990,6 +991,8 @@ if (!String.prototype.trim) {
 				var keyCode = e.charCode || e.keyCode,
 					keyCodeStr = String.fromCharCode(keyCode).toLowerCase();
 
+				console.log(keyCodeStr);
+				console.log(['b', 'i', 'l', 'q'].indexOf(keyCodeStr));
 				if (['b', 'i', 'l', 'q'].indexOf(keyCodeStr) !== -1) hotkeyPressed(keyCodeStr, e);
 			}
 		});
