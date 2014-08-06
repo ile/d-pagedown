@@ -1,7 +1,7 @@
 <index:>
 	<div as="expandingArea" class="d-textarea">
 		<pre><span>{{@text}}</span><br></pre>
-		<textarea on-keydown="emitKeydown($event, $element)" id="{{@id}}" disabled="{{@disabled}}" name="{{@name_}}" placeholder="{{@placeholder}}" class="{{@class}}">{{@text}}</textarea>
+		<textarea on-keydown="emitKeydown($event, $element)" as="input" disabled="{{@disabled}}" name="{{@name_}}" placeholder="{{@placeholder}}" class="{{@class}}">{{@text}}</textarea>
 	</div>
 	<div id="wmd-button-bar">
 		<ul id="wmd-button-row-buttons" class="wmd-button-row">

@@ -139,7 +139,8 @@ if (!String.prototype.trim) {
 				return; // already initialized
 
 			this.panels = new PanelCollection(this);
-			this.commandManager = new CommandManager(this, hooks);
+			// this.commandManager = new CommandManager(this, hooks);
+			this.commandManager = createCommandManager(this, hooks);
 
 			if (!/\?noundo/.test(doc.location.href)) {
 				this.undoManager = new UndoManager(function () { }, this.panels);
@@ -166,41 +167,35 @@ if (!String.prototype.trim) {
 		var regex;
 
 		if (startRegex) {
-
 			regex = util.extendRegExp(startRegex, "", "$");
 
-			this.before = this.before.replace(regex,
-				function (match) {
-					chunkObj.startTag = chunkObj.startTag + match;
-					return "";
-				});
+			this.before = this.before.replace(regex, function (match) {
+				chunkObj.startTag = chunkObj.startTag + match;
+				return "";
+			});
 
 			regex = util.extendRegExp(startRegex, "^", "");
 
-			this.selection = this.selection.replace(regex,
-				function (match) {
-					chunkObj.startTag = chunkObj.startTag + match;
-					return "";
-				});
+			this.selection = this.selection.replace(regex, function (match) {
+				chunkObj.startTag = chunkObj.startTag + match;
+				return "";
+			});
 		}
 
 		if (endRegex) {
-
 			regex = util.extendRegExp(endRegex, "", "$");
 
-			this.selection = this.selection.replace(regex,
-				function (match) {
-					chunkObj.endTag = match + chunkObj.endTag;
-					return "";
-				});
+			this.selection = this.selection.replace(regex, function (match) {
+				chunkObj.endTag = match + chunkObj.endTag;
+				return "";
+			});
 
 			regex = util.extendRegExp(endRegex, "^", "");
 
-			this.after = this.after.replace(regex,
-				function (match) {
-					chunkObj.endTag = match + chunkObj.endTag;
-					return "";
-				});
+			this.after = this.after.replace(regex, function (match) {
+				chunkObj.endTag = match + chunkObj.endTag;
+				return "";
+			});
 		}
 	};
 
@@ -306,19 +301,71 @@ if (!String.prototype.trim) {
 		var self = this,
 			id = 'wmd-button-bar';
 
-		this.input = doc.getElementById("wmd-input");
+		this.input = editor.derbyPageDown.input;
 		this.caretPosition = new CaretPosition(this.input);
-		this.buttonBar = doc.getElementById(id);
-		console.log(this.buttonBar);
-		console.dir(this.buttonBar);
+		this.toolbar = doc.getElementById(id);
 
-		this.buttonBar.contains = function(n) {
+		this.link = (function() {
+			var dialog = document.getElementById('wmd-button-row-link'),
+				input = document.getElementById('wmd-button-row-link').querySelector('input'),
+				closeButton = document.getElementById('wmd-button-row-link').querySelector('i'),
+				callback;
+
+			closeButton.addEventListener('click', function(e) {
+				close(true);
+			});
+
+			input.addEventListener('keypress', function(e) {
+				var charCode = e.keyCode || e.which;
+
+				if (charCode === 13) {
+					e.preventDefault();
+					e.stopPropagation();
+					close(false);
+				}
+			});
+					
+			// Used as a keydown event handler. Esc dismisses the prompt.
+			// Key code 27 is ESC.
+			function checkEscape(key) {
+				var code = (key.charCode || key.keyCode);
+				if (code === 27) {
+					key.preventDefault();
+					if (key.stopPropagation) key.stopPropagation();
+					close(true);
+					return false;
+				}
+			}
+
+			function close(isCancel) {
+				util.removeEvent(document.body, "keyup", checkEscape);
+				var text = input.value;
+
+				if (isCancel) {
+					text = null;
+				}
+
+				self.toolbar.hide('link');
+				callback(text);
+				return false;
+			}
+
+			return function(value, cb) {
+				input.value = value;
+				callback = cb;
+				util.addEvent(document.body, "keyup", checkEscape);
+				self.toolbar.show('link');
+				input.focus();
+			};
+		}());
+
+		this.toolbar.contains = function(n) {
 			if ((n && n.id === id) || (n.parentNode && n.parentNode.id === id) || (n.parentNode.parentNode && n.parentNode.parentNode.id === id) || (n.parentNode.parentNode.parentNode && n.parentNode.parentNode.parentNode.id === id)) {
 				return true;
 			}
 		};
 
-		this.buttonBar.show = function(which) {
+		this.toolbar.show = function(which) {
 			which = which || 'buttons';
 
 			function calculatePosition() {
@@ -350,7 +397,7 @@ if (!String.prototype.trim) {
 			}
 		};
 
-		this.buttonBar.hide = function() {
+		this.toolbar.hide = function() {
 			this.removeAttribute('data-show');
 		};
 
@@ -365,10 +412,10 @@ if (!String.prototype.trim) {
 
 				// show toolbar if text is selected
 				if (s) {
-					editor.panels.buttonBar.show();
+					editor.panels.toolbar.show();
 				}
 				else {
-					editor.panels.buttonBar.hide();
+					editor.panels.toolbar.hide();
 				}
 			}, 0);
 		}
@@ -386,8 +433,8 @@ if (!String.prototype.trim) {
 		util.addEvent(document, 'mousedown', function(e) {
 			var t = e.srcElement || e.target;
 
-			if (!self.buttonBar.contains(t)) {
-				self.buttonBar.hide.call(self.buttonBar);
+			if (!self.toolbar.contains(t)) {
+				self.toolbar.hide.call(self.toolbar);
 			}
 		});
 		util.addEvent(this.input, 'mouseup', showToolbarIfNeeded);
@@ -864,7 +911,7 @@ if (!String.prototype.trim) {
 
 		var timer,
 			inputBox = editor.panels.input,
-			buttonBar = editor.panels.buttonBar;
+			toolbar = editor.panels.toolbar;
 
 		this.editor = editor;
 
@@ -881,7 +928,7 @@ if (!String.prototype.trim) {
 
 		function hotkeyPressed(key, e) {
 			e.preventDefault();
-			var t = getButton(buttonBar.querySelector("li[data-key='" + key + "']"));
+			var t = getButton(toolbar.querySelector("li[data-key='" + key + "']"));
 
 			if (t) {
 				clickButton(t);
@@ -892,7 +939,7 @@ if (!String.prototype.trim) {
 			var t = getButton(e.target || e.srcElement);
 
 			if (t) {
-				editor.panels.buttonBar.hide();
+				editor.panels.toolbar.hide();
 				clickButton(t);
 			}
 		}
@@ -958,621 +1005,571 @@ if (!String.prototype.trim) {
 		}
 
 		// setup event listeners
-		var el = buttonBar.querySelectorAll('li');
+		var el = toolbar.querySelectorAll('li');
 		for (var i = 0; i < el.length; i++) el[i].addEventListener('click', buttonClicked);
 	}
 
-	// This simulates a modal dialog box and asks for the URL when you
-	// click the hyperlink or image buttons.
-	//
-	// text: The html for the input box.
-	// defaultInputText: The default value that appears in the input box.
-	// callback: The function which is executed when the prompt is dismissed, either via OK or Cancel.
-	//      It receives a single argument; either the entered text (if OK was chosen) or null (if Cancel
-	//      was chosen).
-	UIManager.prototype.prompt = function (which) {
+	function createCommandManager(editor, pluginHooks) {
+		var state;
 
-		// These variables need to be declared at this level since they are used
-		// in multiple functions.
-		var dialog;         // The dialog box.
-		var input;         // The text box where you enter the hyperlink.
+		function CommandManager() {
+			this.hooks = pluginHooks;
+		}
 
-		// Used as a keydown event handler. Esc dismisses the prompt.
-		// Key code 27 is ESC.
-		var checkEscape = function (key) {
-			var code = (key.charCode || key.keyCode);
-			if (code === 27) {
-				if (key.stopPropagation) key.stopPropagation();
-				close(true);
-				return false;
+		function initiate() {
+			state = new TextareaState(editor.panels);
+
+			if (state) {
+				return state.getChunks();
 			}
+		}
+
+		function finish(chunk) {
+			editor.panels.input.focus();
+
+			if (chunk) {
+				state.setChunks(chunk);
+			}
+
+			state.restore();
+			state = null;
+		}
+
+		var cp = CommandManager.prototype;
+
+		// The markdown symbols - 4 spaces = code, > = blockquote, etc.
+		cp.prefixes = "(?:\\s{4,}|\\s*>|\\s*-\\s+|\\s*\\d+\\.|=|\\+|-|_|\\*|#|\\s*\\[[^\n]]+\\]:)";
+
+		// Remove markdown symbols from the chunk selection.
+		cp.unwrap = function (chunk) {
+			var txt = new re("([^\\n])\\n(?!(\\n|" + this.prefixes + "))", "g");
+			chunk.selection = chunk.selection.replace(txt, "$1 $2");
 		};
 
-		// Dismisses the hyperlink input box.
-		// isCancel is true if we don't care about the input text.
-		// isCancel is false if we are going to keep the text.
-		var close = function (isCancel) {
-			util.removeEvent(doc.body, "keyup", checkEscape);
-			var text = input.value;
-
-			if (isCancel) {
-				text = null;
-			}
-			else {
-				// Fixes common pasting errors.
-				text = text.replace(/^http:\/\/(https?|ftp):\/\//, '$1://');
-				if (!/^(?:https?|ftp):\/\//.test(text))
-					text = 'http://' + text;
-			}
-
-			dialog.parentNode.removeChild(dialog);
-
-			callback(text);
-			return false;
-		};
-
-		this.editor.panels.buttonBar.show(which);
-
-		if (input.selectionStart !== undefined && input.createTextRange) {
-			var range = input.createTextRange();
-			range.collapse(false);
-			range.moveStart("character", -defTextLen);
-			range.moveEnd("character", defTextLen);
-			range.select();
-		}
-
-		input.focus();
-	};
-
-	function CommandManager(editor, pluginHooks) {
-		this.editor = editor;
-		this.hooks = pluginHooks;
-	}
-
-	var commandProto = CommandManager.prototype;
-
-	// The markdown symbols - 4 spaces = code, > = blockquote, etc.
-	commandProto.prefixes = "(?:\\s{4,}|\\s*>|\\s*-\\s+|\\s*\\d+\\.|=|\\+|-|_|\\*|#|\\s*\\[[^\n]]+\\]:)";
-
-	// Remove markdown symbols from the chunk selection.
-	commandProto.unwrap = function (chunk) {
-		var txt = new re("([^\\n])\\n(?!(\\n|" + this.prefixes + "))", "g");
-		chunk.selection = chunk.selection.replace(txt, "$1 $2");
-	};
-
-	commandProto.wrap = function (chunk, len) {
-		this.unwrap(chunk);
-		var regex = new re("(.{1," + len + "})( +|$\\n?)", "gm"),
-			that = this;
-
-		chunk.selection = chunk.selection.replace(regex, function (line, marked) {
-			if (new re("^" + that.prefixes, "").test(line)) {
-				return line;
-			}
-			return marked + "\n";
-		});
-
-		chunk.selection = chunk.selection.replace(/\s+$/, "");
-	};
-
-	// Some commands launch a "modal" prompt dialog.  Javascript
-	// can't really make a modal dialog box and the WMD code
-	// will continue to execute while the dialog is displayed.
-	// This prevents the dialog pattern I'm used to and means
-	// I can't do something like this:
-	//
-	// var link = CreateLinkDialog();
-	// makeMarkdownLink(link);
-	//
-	// Instead of this straightforward method of handling a
-	// dialog I have to pass any code which would execute
-	// after the dialog is dismissed (e.g. link creation)
-	// in a function parameter.
-	//
-	// Yes this is awkward and I think it sucks, but there's
-	// no real workaround.  Only the image and link code
-	// create dialogs and require the function pointers.
-	commandProto.initiate = function(state, chunks) {
-		this.state = new TextareaState(this.editor.panels);
-
-		if (this.state) {
-			this.chunk = this.state.getChunks();
-			return this.chunk;
-		}
-	};
-
-	commandProto.finish = function(state, chunks) {
-		this.editor.panels.input.focus();
-
-		if (this.chunk) {
-			this.state.setChunks(this.chunk);
-		}
-
-		this.state.restore();
-		this.state = this.chunk = null;
-	};
-
-
-	// Perform the button's action.
-	commandProto.doClick = function(command) {
-		this.editor.panels.input.focus();
-
-		if (this[command]) {
-			if (this.editor.undoManager) this.editor.undoManager.setCommandMode();
-			this[command]();
-		}
-	};
-
-	commandProto.bold = function () {
-		return this.doWrap('**', '**', this.editor.getString("boldexample"), true);
-	};
-
-	commandProto.italic = function () {
-		return this.doWrap('*', '*', this.editor.getString("italicexample"), true);
-	};
-
-	commandProto.doWrap = function (charsLeft, charsRight, insertText, toggle) {
-		var howMany = charsLeft.length,
-			charLeft = charsLeft.charAt(0),
-			charRight = charsRight.charAt(0),
-			before, after, prev;
-
-		var chunk = this.initiate();
-
-		// Get rid of whitespace and fixup newlines.
-		chunk.trimWhitespace();
-		chunk.selection = chunk.selection.replace(/\n{2,}/g, "\n");
-
-		// Look for stars before and after.  Is the chunk already marked up?
-		// note that these regex matches cannot fail
-		if (toggle) {
-			before = new RegExp(util.escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
-			after = new RegExp("^" + util.escapeRegExp(charRight) + "*").exec(chunk.after)[0];
-			prev = Math.min(before.length, after.length);
-		}
-
-		// Remove stars if we have to since the button acts as a toggle.
-		if (toggle && (prev >= howMany) && (prev != 2 || howMany != 1)) {
-			chunk.before = chunk.before.replace(new re(util.escapeRegExp(charsLeft) + "$", ""), "");
-			chunk.after = chunk.after.replace(new re("^" + util.escapeRegExp(charsRight), ""), "");
-		}
-		// else if (0 && !chunk.selection && after) {
-		//     // It's not really clear why this code is necessary.  It just moves
-		//     // some arbitrary stuff around.
-		//     chunk.after = chunk.after.replace(/^([*_]*)/, "");
-		//     chunk.before = chunk.before.replace(/(\s?)$/, "");
-		//     var whitespace = re.$1;
-		//     chunk.before = chunk.before + after + whitespace;
-		// }
-		else {
-
-			// In most cases, if you don't have any selected text and click the button
-			// you'll get a selected, marked up region with the default text inserted.
-			if (!chunk.selection && !after) {
-				chunk.selection = insertText;
-			}
-
-			// Add the true markup.
-			chunk.before = chunk.before + charsLeft;
-			chunk.after = charsRight + chunk.after;
-		}
-
-		this.finish();
-	};
-
-	commandProto.stripLinkDefs = function (text, defsToAdd) {
-
-		text = text.replace(/^[ ]{0,3}\[(\d+)\]:[ \t]*\n?[ \t]*<?(\S+?)>?[ \t]*\n?[ \t]*(?:(\n*)["(](.+?)[")][ \t]*)?(?:\n+|$)/gm,
-			function (totalMatch, id, link, newlines, title) {
-				defsToAdd[id] = totalMatch.replace(/\s*$/, "");
-				if (newlines) {
-					// Strip the title and return that separately.
-					defsToAdd[id] = totalMatch.replace(/["(](.+?)[")]$/, "");
-					return newlines + title;
-				}
-				return "";
-			});
-
-		return text;
-	};
-
-	commandProto.addLinkDef = function (chunk, linkDef) {
-
-		var refNumber = 0; // The current reference number
-		var defsToAdd = {}; //
-		// Start with a clean slate by removing all previous link definitions.
-		chunk.before = this.stripLinkDefs(chunk.before, defsToAdd);
-		chunk.selection = this.stripLinkDefs(chunk.selection, defsToAdd);
-		chunk.after = this.stripLinkDefs(chunk.after, defsToAdd);
-
-		var defs = "";
-		var regex = /(\[)((?:\[[^\]]*\]|[^\[\]])*)(\][ ]?(?:\n[ ]*)?\[)(\d+)(\])/g;
-
-		var addDefNumber = function (def) {
-			refNumber++;
-			def = def.replace(/^[ ]{0,3}\[(\d+)\]:/, "  [" + refNumber + "]:");
-			defs += "\n" + def;
-		};
-
-		// note that
-		// a) the recursive call to getLink cannot go infinite, because by definition
-		//    of regex, inner is always a proper substring of wholeMatch, and
-		// b) more than one level of nesting is neither supported by the regex
-		//    nor making a lot of sense (the only use case for nesting is a linked image)
-		var getLink = function (wholeMatch, before, inner, afterInner, id, end) {
-			inner = inner.replace(regex, getLink);
-			if (defsToAdd[id]) {
-				addDefNumber(defsToAdd[id]);
-				return before + inner + afterInner + refNumber + end;
-			}
-			return wholeMatch;
-		};
-
-		chunk.before = chunk.before.replace(regex, getLink);
-
-		if (linkDef) {
-			addDefNumber(linkDef);
-		}
-		else {
-			chunk.selection = chunk.selection.replace(regex, getLink);
-		}
-
-		var refOut = refNumber;
-
-		chunk.after = chunk.after.replace(regex, getLink);
-
-		if (chunk.after) {
-			chunk.after = chunk.after.replace(/\n*$/, "");
-		}
-		if (!chunk.after) {
-			chunk.selection = chunk.selection.replace(/\n*$/, "");
-		}
-
-		chunk.after += "\n\n" + defs;
-
-		return refOut;
-	};
-
-	// takes the line as entered into the add link/as image dialog and makes
-	// sure the URL and the optinal title are "nice".
-	function properlyEncoded(linkdef) {
-		return linkdef.replace(/^\s*(.*?)(?:\s+"(.+)")?\s*$/, function (wholematch, link, title) {
-			
-			var inQueryString = false;
-
-			// The last alternative, `[^\w\d-./]`, is just a shortcut that lets us skip
-			// the most common characters in URLs. Replacing it with `.` would not change
-			// the result, because encodeURI returns those characters unchanged, but it
-			// would mean lots of unnecessary replacement calls
-			link = link.replace(/%(?:[\da-fA-F]{2})|\?|\+|[^\w\d-./]/g, function (match) {
-				// Valid percent encoding. Could just return it as is, but we follow RFC3986
-				// Section 2.1 which says "For consistency, URI producers and normalizers
-				// should use uppercase hexadecimal digits for all percent-encodings."
-				// Note that we also handle (illegal) stand-alone percent characters by
-				// replacing them with "%25"
-				if (match.length === 3 && match.charAt(0) == "%") {
-					return match.toUpperCase();
-				}
-				switch (match) {
-					case "?":
-						inQueryString = true;
-						return "?";
-						break;
-					
-					// In the query string, a plus and a space are identical -- normalize.
-					// Not strictly necessary, but identical behavior to the previous version
-					// of this function.
-					case "+":
-						if (inQueryString)
-							return "%20";
-						break;
-				}
-				return encodeURI(match);
-			})
-			
-			if (title) {
-				title = title.trim ? title.trim() : title.replace(/^\s*/, "").replace(/\s*$/, "");
-				title = title.replace(/"/g, "quot;").replace(/\(/g, "&#40;").replace(/\)/g, "&#41;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
-			}
-			return title ? link + ' "' + title + '"' : link;
-		});
-	}
-
-	commandProto.link = function () {
-		this.linkOrImage('link');
-	};
-
-	commandProto.image = function (chunk, postProcessing) {
-		this.linkOrImage('image');
-	};
-
-	commandProto.linkOrImage = function (which) {
-		var self = this, chunk = this.initiate();
-
-		chunk.trimWhitespace();
-		chunk.findTags(/\s*!?\[/, /\][ ]?(?:\n[ ]*)?(\[.*?\])?/);
-
-		if (chunk.endTag.length > 1 && chunk.startTag.length > 0) {
-
-			chunk.startTag = chunk.startTag.replace(/!?\[/, "");
-			chunk.endTag = "";
-			this.addLinkDef(chunk, null);
-
-		}
-		else {
-			
-			// We're moving start and end tag back into the selection, since (as we're in the else block) we're not
-			// *removing* a link, but *adding* one, so whatever findTags() found is now back to being part of the
-			// link text. linkEnteredCallback takes care of escaping any brackets.
-			chunk.selection = chunk.startTag + chunk.selection + chunk.endTag;
-			chunk.startTag = chunk.endTag = "";
-
-			if (/\n\n/.test(chunk.selection)) {
-				this.addLinkDef(chunk, null);
-				return;
-			}
-			var that = this;
-			// The function to be executed when you enter a link and press OK or Cancel.
-			// Marks up the link and adds the ref.
-			var linkEnteredCallback = function (link) {
-
-				if (link !== null) {
-					// (                          $1
-					//     [^\\]                  anything that's not a backslash
-					//     (?:\\\\)*              an even number (this includes zero) of backslashes
-					// )
-					// (?=                        followed by
-					//     [[\]]                  an opening or closing bracket
-					// )
-					//
-					// In other words, a non-escaped bracket. These have to be escaped now to make sure they
-					// don't count as the end of the link or similar.
-					// Note that the actual bracket has to be a lookahead, because (in case of to subsequent brackets),
-					// the bracket in one match may be the "not a backslash" character in the next match, so it
-					// should not be consumed by the first match.
-					// The "prepend a space and finally remove it" steps makes sure there is a "not a backslash" at the
-					// start of the string, so this also works if the selection begins with a bracket. We cannot solve
-					// this by anchoring with ^, because in the case that the selection starts with two brackets, this
-					// would mean a zero-width match at the start. Since zero-width matches advance the string position,
-					// the first bracket could then not act as the "not a backslash" for the second.
-					chunk.selection = (" " + chunk.selection).replace(/([^\\](?:\\\\)*)(?=[[\]])/g, "$1\\").substr(1);
-					
-					var linkDef = " [999]: " + properlyEncoded(link);
-
-					var num = that.addLinkDef(chunk, linkDef);
-					chunk.startTag = which === 'image' ? "![" : "[";
-					chunk.endTag = "][" + num + "]";
-
-					if (!chunk.selection) {
-						if (which === 'image') {
-							chunk.selection = that.editor.getString("imagedescription");
-						}
-						else {
-							chunk.selection = that.editor.getString("linkdescription");
-						}
-					}
-				}
-				self.finish();
-			};
-
-			this.editor.uiManager.prompt(which);
-		}
-	};
-
-	commandProto.quote = function () {
-		var chunk = this.initiate();
-
-		chunk.selection = chunk.selection.replace(/^(\n*)([^\r]+?)(\n*)$/,
-			function (totalMatch, newlinesBefore, text, newlinesAfter) {
-				chunk.before += newlinesBefore;
-				chunk.after = newlinesAfter + chunk.after;
-				return text;
-			});
-
-		chunk.before = chunk.before.replace(/(>[ \t]*)$/,
-			function (totalMatch, blankLine) {
-				chunk.selection = blankLine + chunk.selection;
-				return "";
-			});
-
-		chunk.selection = chunk.selection.replace(/^(\s|>)+$/, "");
-		chunk.selection = chunk.selection || this.editor.getString("quoteexample");
-
-		// The original code uses a regular expression to find out how much of the
-		// text *directly before* the selection already was a blockquote:
-
-		/*
-		if (chunk.before) {
-		chunk.before = chunk.before.replace(/\n?$/, "\n");
-		}
-		chunk.before = chunk.before.replace(/(((\n|^)(\n[ \t]*)*>(.+\n)*.*)+(\n[ \t]*)*$)/,
-		function (totalMatch) {
-		chunk.startTag = totalMatch;
-		return "";
-		});
-		*/
-
-		// This comes down to:
-		// Go backwards as many lines a possible, such that each line
-		//  a) starts with ">", or
-		//  b) is almost empty, except for whitespace, or
-		//  c) is preceeded by an unbroken chain of non-empty lines
-		//     leading up to a line that starts with ">" and at least one more character
-		// and in addition
-		//  d) at least one line fulfills a)
-		//
-		// Since this is essentially a backwards-moving regex, it's susceptible to
-		// catstrophic backtracking and can cause the browser to hang;
-		// see e.g. http://meta.stackexchange.com/questions/9807.
-		//
-		// Hence we replaced this by a simple state machine that just goes through the
-		// lines and checks for a), b), and c).
-
-		var match = "",
-			leftOver = "",
-			line;
-		if (chunk.before) {
-			var lines = chunk.before.replace(/\n$/, "").split("\n");
-			var inChain = false;
-			for (var i = 0; i < lines.length; i++) {
-				var good = false;
-				line = lines[i];
-				inChain = inChain && line.length > 0; // c) any non-empty line continues the chain
-				if (/^>/.test(line)) {                // a)
-					good = true;
-					if (!inChain && line.length > 1)  // c) any line that starts with ">" and has at least one more character starts the chain
-						inChain = true;
-				} else if (/^[ \t]*$/.test(line)) {   // b)
-					good = true;
-				} else {
-					good = inChain;                   // c) the line is not empty and does not start with ">", so it matches if and only if we're in the chain
-				}
-				if (good) {
-					match += line + "\n";
-				} else {
-					leftOver += match + line;
-					match = "\n";
-				}
-			}
-			if (!/(^|\n)>/.test(match)) {             // d)
-				leftOver += match;
-				match = "";
-			}
-		}
-
-		chunk.startTag = match;
-		chunk.before = leftOver;
-
-		// end of change
-
-		if (chunk.after) {
-			chunk.after = chunk.after.replace(/^\n?/, "\n");
-		}
-
-		chunk.after = chunk.after.replace(/^(((\n|^)(\n[ \t]*)*>(.+\n)*.*)+(\n[ \t]*)*)/,
-			function (totalMatch) {
-				chunk.endTag = totalMatch;
-				return "";
-			}
-		);
-
-		var replaceBlanksInTags = function (useBracket) {
-
-			var replacement = useBracket ? "> " : "";
-
-			if (chunk.startTag) {
-				chunk.startTag = chunk.startTag.replace(/\n((>|\s)*)\n$/,
-					function (totalMatch, markdown) {
-						return "\n" + markdown.replace(/^[ ]{0,3}>?[ \t]*$/gm, replacement) + "\n";
-					});
-			}
-			if (chunk.endTag) {
-				chunk.endTag = chunk.endTag.replace(/^\n((>|\s)*)\n/,
-					function (totalMatch, markdown) {
-						return "\n" + markdown.replace(/^[ ]{0,3}>?[ \t]*$/gm, replacement) + "\n";
-					});
-			}
-		};
-
-		if (/^(?![ ]{0,3}>)/m.test(chunk.selection)) {
-			this.wrap(chunk, SETTINGS.lineLength - 2);
-			chunk.selection = chunk.selection.replace(/^/gm, "> ");
-			replaceBlanksInTags(true);
-			chunk.skipLines();
-		} else {
-			chunk.selection = chunk.selection.replace(/^[ ]{0,3}> ?/gm, "");
+		cp.wrap = function (chunk, len) {
 			this.unwrap(chunk);
-			replaceBlanksInTags(false);
+			var regex = new re("(.{1," + len + "})( +|$\\n?)", "gm"),
+				that = this;
 
-			if (!/^(\n|^)[ ]{0,3}>/.test(chunk.selection) && chunk.startTag) {
-				chunk.startTag = chunk.startTag.replace(/\n{0,2}$/, "\n\n");
-			}
-
-			if (!/(\n|^)[ ]{0,3}>.*$/.test(chunk.selection) && chunk.endTag) {
-				chunk.endTag = chunk.endTag.replace(/^\n{0,2}/, "\n\n");
-			}
-		}
-
-		chunk.selection = this.hooks.postBlockquoteCreation(chunk.selection);
-
-		if (!/\n/.test(chunk.selection)) {
-			chunk.selection = chunk.selection.replace(/^(> *)/,
-			function (wholeMatch, blanks) {
-				chunk.startTag += blanks;
-				return "";
+			chunk.selection = chunk.selection.replace(regex, function (line, marked) {
+				if (new re("^" + that.prefixes, "").test(line)) {
+					return line;
+				}
+				return marked + "\n";
 			});
-		}
 
-		this.finish();
-	};
+			chunk.selection = chunk.selection.replace(/\s+$/, "");
+		};
 
-	commandProto.code = function () {
-		var self = this, chunk = this.initiate();
-		var hasTextBefore = /\S[ ]*$/.test(chunk.before);
-		var hasTextAfter = /^[ ]*\S/.test(chunk.after);
+		// Perform the button's action.
+		cp.doClick = function(command) {
+			editor.panels.input.focus();
 
-		// Use 'four space' markdown if the selection is on its own
-		// line or is multiline.
-		if ((!hasTextAfter && !hasTextBefore) || /\n/.test(chunk.selection)) {
+			if (this[command]) {
+				if (editor.undoManager) editor.undoManager.setCommandMode();
+				this[command]();
+			}
+		};
 
-			chunk.before = chunk.before.replace(/[ ]{4}$/,
-				function (totalMatch) {
-					chunk.selection = totalMatch + chunk.selection;
+		cp.bold = function () {
+			return this.doWrap('**', '**', editor.getString("boldexample"), true);
+		};
+
+		cp.italic = function () {
+			return this.doWrap('*', '*', editor.getString("italicexample"), true);
+		};
+
+		cp.doWrap = function (charsLeft, charsRight, insertText, toggle) {
+			var howMany = charsLeft.length,
+				charLeft = charsLeft.charAt(0),
+				charRight = charsRight.charAt(0),
+				before, after, prev,
+				chunk = initiate();
+
+			// Get rid of whitespace and fixup newlines.
+			chunk.trimWhitespace();
+			chunk.selection = chunk.selection.replace(/\n{2,}/g, "\n");
+
+			// Look for stars before and after.  Is the chunk already marked up?
+			// note that these regex matches cannot fail
+			if (toggle) {
+				before = new RegExp(util.escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
+				after = new RegExp("^" + util.escapeRegExp(charRight) + "*").exec(chunk.after)[0];
+				prev = Math.min(before.length, after.length);
+			}
+
+			// Remove stars if we have to since the button acts as a toggle.
+			if (toggle && (prev >= howMany) && (prev != 2 || howMany != 1)) {
+				chunk.before = chunk.before.replace(new re(util.escapeRegExp(charsLeft) + "$", ""), "");
+				chunk.after = chunk.after.replace(new re("^" + util.escapeRegExp(charsRight), ""), "");
+			}
+			// else if (0 && !chunk.selection && after) {
+			//     // It's not really clear why this code is necessary.  It just moves
+			//     // some arbitrary stuff around.
+			//     chunk.after = chunk.after.replace(/^([*_]*)/, "");
+			//     chunk.before = chunk.before.replace(/(\s?)$/, "");
+			//     var whitespace = re.$1;
+			//     chunk.before = chunk.before + after + whitespace;
+			// }
+			else {
+
+				// In most cases, if you don't have any selected text and click the button
+				// you'll get a selected, marked up region with the default text inserted.
+				if (!chunk.selection && !after) {
+					chunk.selection = insertText;
+				}
+
+				// Add the true markup.
+				chunk.before = chunk.before + charsLeft;
+				chunk.after = charsRight + chunk.after;
+			}
+
+			finish(chunk);
+		};
+
+		function stripLinkDefs(text, defsToAdd) {
+
+			text = text.replace(/^[ ]{0,3}\[(\d+)\]:[ \t]*\n?[ \t]*<?(\S+?)>?[ \t]*\n?[ \t]*(?:(\n*)["(](.+?)[")][ \t]*)?(?:\n+|$)/gm,
+				function (totalMatch, id, link, newlines, title) {
+					defsToAdd[id] = totalMatch.replace(/\s*$/, "");
+					if (newlines) {
+						// Strip the title and return that separately.
+						defsToAdd[id] = totalMatch.replace(/["(](.+?)[")]$/, "");
+						return newlines + title;
+					}
 					return "";
 				});
 
-			var nLinesBack = 1;
-			var nLinesForward = 1;
+			return text;
+		}
 
-			if (/(\n|^)(\t|[ ]{4,}).*\n$/.test(chunk.before)) {
-				nLinesBack = 0;
+		function getLinkDef(chunk) {
+			var r1 = /\]\[([\d])\]/,
+				r2 = /\]\[([^\]])\]/,
+				m1 = chunk.endTag.match(r1),
+				m2 = chunk.endTag.match(r2),
+				m, link = '';
+
+			if (m1) {
+				var r3 = new RegExp("\\[" + m1[1] + "\\]:\\s+(.+)");
+				m = chunk.after.match(r3);
+
+				if (m) {
+					link = m[1];
+				}
 			}
-			if (/^\n(\t|[ ]{4,})/.test(chunk.after)) {
-				nLinesForward = 0;
+			else if (m2) {
+				link = m2[1];
 			}
 
-			chunk.skipLines(nLinesBack, nLinesForward);
+			return link;
+		}
 
-			if (!chunk.selection) {
-				chunk.startTag = "    ";
-				chunk.selection = this.editor.getString("codeexample");
+		function addLinkDef(chunk, linkDef) {
+			var refNumber = 0; // The current reference number
+			var defsToAdd = {}; //
+			// Start with a clean slate by removing all previous link definitions.
+			chunk.before = stripLinkDefs(chunk.before, defsToAdd);
+			chunk.selection = stripLinkDefs(chunk.selection, defsToAdd);
+			chunk.after = stripLinkDefs(chunk.after, defsToAdd);
+
+			var defs = "";
+			var regex = /(\[)((?:\[[^\]]*\]|[^\[\]])*)(\][ ]?(?:\n[ ]*)?\[)(\d+)(\])/g;
+
+			function addDefNumber(def) {
+				refNumber++;
+				def = def.replace(/^[ ]{0,3}\[(\d+)\]:/, "  [" + refNumber + "]:");
+				defs += "\n" + def;
+			}
+
+			// note that
+			// a) the recursive call to getLink cannot go infinite, because by definition
+			//    of regex, inner is always a proper substring of wholeMatch, and
+			// b) more than one level of nesting is neither supported by the regex
+			//    nor making a lot of sense (the only use case for nesting is a linked image)
+			function getLink(wholeMatch, before, inner, afterInner, id, end) {
+				inner = inner.replace(regex, getLink);
+				if (defsToAdd[id]) {
+					addDefNumber(defsToAdd[id]);
+					return before + inner + afterInner + refNumber + end;
+				}
+				return wholeMatch;
+			}
+
+			chunk.before = chunk.before.replace(regex, getLink);
+
+			if (linkDef) {
+				addDefNumber(linkDef);
 			}
 			else {
-				if (/^[ ]{0,3}\S/m.test(chunk.selection)) {
-					if (/\n/.test(chunk.selection))
-						chunk.selection = chunk.selection.replace(/^/gm, "    ");
-					else // if it's not multiline, do not select the four added spaces; this is more consistent with the doList behavior
-						chunk.before += "    ";
+				chunk.selection = chunk.selection.replace(regex, getLink);
+			}
+
+			var refOut = refNumber;
+			chunk.after = chunk.after.replace(regex, getLink);
+
+			if (chunk.after) {
+				chunk.after = chunk.after.replace(/\n*$/, "");
+			}
+
+			if (!chunk.after) {
+				chunk.selection = chunk.selection.replace(/\n*$/, "");
+			}
+
+			chunk.after += "\n\n" + defs;
+
+			return refOut;
+		}
+
+		// takes the line as entered into the add link/as image dialog and makes
+		// sure the URL and the optinal title are "nice".
+		function properlyEncoded(linkdef) {
+			return linkdef.replace(/^\s*(.*?)(?:\s+"(.+)")?\s*$/, function (wholematch, link, title) {
+				
+				var inQueryString = false;
+
+				// The last alternative, `[^\w\d-./]`, is just a shortcut that lets us skip
+				// the most common characters in URLs. Replacing it with `.` would not change
+				// the result, because encodeURI returns those characters unchanged, but it
+				// would mean lots of unnecessary replacement calls
+				link = link.replace(/%(?:[\da-fA-F]{2})|\?|\+|[^\w\d-./]/g, function (match) {
+					// Valid percent encoding. Could just return it as is, but we follow RFC3986
+					// Section 2.1 which says "For consistency, URI producers and normalizers
+					// should use uppercase hexadecimal digits for all percent-encodings."
+					// Note that we also handle (illegal) stand-alone percent characters by
+					// replacing them with "%25"
+					if (match.length === 3 && match.charAt(0) == "%") {
+						return match.toUpperCase();
+					}
+					switch (match) {
+						case "?":
+							inQueryString = true;
+							return "?";
+						
+						// In the query string, a plus and a space are identical -- normalize.
+						// Not strictly necessary, but identical behavior to the previous version
+						// of this function.
+						case "+":
+							if (inQueryString)
+								return "%20";
+							break;
+					}
+					return encodeURI(match);
+				});
+				
+				if (title) {
+					title = title.trim ? title.trim() : title.replace(/^\s*/, "").replace(/\s*$/, "");
+					title = title.replace(/"/g, "quot;").replace(/\(/g, "&#40;").replace(/\)/g, "&#41;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 				}
-				else {
-					chunk.selection = chunk.selection.replace(/^(?:[ ]{4}|[ ]{0,3}\t)/gm, "");
+				return title ? link + ' "' + title + '"' : link;
+			});
+		}
+
+		// The function to be executed when you enter a link and press OK or Cancel.
+		// Marks up the link and adds the ref.
+		function linkEnteredCallback(link, which, chunk) {
+			if (link) {
+				// Fixes common pasting errors.
+				link = link.replace(/^http:\/\/(https?|ftp):\/\//, '$1://');
+				if (!/^(?:https?|ftp):\/\//.test(link))
+					link = 'http://' + link;
+
+				// (                          $1
+				//     [^\\]                  anything that's not a backslash
+				//     (?:\\\\)*              an even number (this includes zero) of backslashes
+				// )
+				// (?=                        followed by
+				//     [[\]]                  an opening or closing bracket
+				// )
+				//
+				// In other words, a non-escaped bracket. These have to be escaped now to make sure they
+				// don't count as the end of the link or similar.
+				// Note that the actual bracket has to be a lookahead, because (in case of to subsequent brackets),
+				// the bracket in one match may be the "not a backslash" character in the next match, so it
+				// should not be consumed by the first match.
+				// The "prepend a space and finally remove it" steps makes sure there is a "not a backslash" at the
+				// start of the string, so this also works if the selection begins with a bracket. We cannot solve
+				// this by anchoring with ^, because in the case that the selection starts with two brackets, this
+				// would mean a zero-width match at the start. Since zero-width matches advance the string position,
+				// the first bracket could then not act as the "not a backslash" for the second.
+				chunk.selection = (" " + chunk.selection).replace(/([^\\](?:\\\\)*)(?=[[\]])/g, "$1\\").substr(1);
+				
+				var linkDef = " [999]: " + properlyEncoded(link),
+					num = addLinkDef(chunk, linkDef);
+
+				chunk.startTag = which === 'image' ? "![" : "[";
+				chunk.endTag = "][" + num + "]";
+
+				if (!chunk.selection) {
+					if (which === 'image') {
+						chunk.selection = editor.getString("imagedescription");
+					}
+					else {
+						chunk.selection = editor.getString("linkdescription");
+					}
 				}
 			}
+			else {
+				chunk.startTag = chunk.startTag.replace(/!?\[/, "");
+				chunk.endTag = "";
+				addLinkDef(chunk, null);
+			}
+
+			finish(chunk);
 		}
-		else {
-			// Use backticks (`) to delimit the code block.
+
+		cp.link = function () {
+			linkOrImage('link');
+		};
+
+		cp.image = function (chunk, postProcessing) {
+			linkOrImage('image');
+		};
+
+		function linkOrImage(which) {
+			var chunk = initiate();
 
 			chunk.trimWhitespace();
-			chunk.findTags(/`/, /`/);
+			chunk.findTags(/\s*!?\[/, /\][ ]?(?:\n[ ]*)?(\[.*?\])?/);
+			console.log(chunk.startTag);
+			console.log(chunk.endTag);
 
-			if (!chunk.startTag && !chunk.endTag) {
-				chunk.startTag = chunk.endTag = "`";
-				if (!chunk.selection) {
-					chunk.selection = this.editor.getString("codeexample");
-				}
-			}
-			else if (chunk.endTag && !chunk.startTag) {
-				chunk.before += chunk.endTag;
-				chunk.endTag = "";
+			// link found
+			if (chunk.endTag.length > 1 && chunk.startTag.length > 0) {
+				editor.panels.link(getLinkDef(chunk), function(link) { linkEnteredCallback(link, which, chunk); });
 			}
 			else {
+				// We're moving start and end tag back into the selection, since (as we're in the else block) we're not
+				// *removing* a link, but *adding* one, so whatever findTags() found is now back to being part of the
+				// link text. linkEnteredCallback takes care of escaping any brackets.
+				chunk.selection = chunk.startTag + chunk.selection + chunk.endTag;
 				chunk.startTag = chunk.endTag = "";
+
+				if (/\n\n/.test(chunk.selection)) {
+					addLinkDef(chunk, null);
+					return;
+				}
+
+				editor.panels.link('', function(link) { linkEnteredCallback(link, which, chunk); });
 			}
 		}
 
-		this.finish();
-	};
+		cp.quote = function () {
+			var chunk = initiate();
 
+			chunk.selection = chunk.selection.replace(/^(\n*)([^\r]+?)(\n*)$/,
+				function (totalMatch, newlinesBefore, text, newlinesAfter) {
+					chunk.before += newlinesBefore;
+					chunk.after = newlinesAfter + chunk.after;
+					return text;
+				});
+
+			chunk.before = chunk.before.replace(/(>[ \t]*)$/,
+				function (totalMatch, blankLine) {
+					chunk.selection = blankLine + chunk.selection;
+					return "";
+				});
+
+			chunk.selection = chunk.selection.replace(/^(\s|>)+$/, "");
+			chunk.selection = chunk.selection || editor.getString("quoteexample");
+
+			// The original code uses a regular expression to find out how much of the
+			// text *directly before* the selection already was a blockquote:
+
+			/*
+			if (chunk.before) {
+			chunk.before = chunk.before.replace(/\n?$/, "\n");
+			}
+			chunk.before = chunk.before.replace(/(((\n|^)(\n[ \t]*)*>(.+\n)*.*)+(\n[ \t]*)*$)/,
+			function (totalMatch) {
+			chunk.startTag = totalMatch;
+			return "";
+			});
+			*/
+
+			// This comes down to:
+			// Go backwards as many lines a possible, such that each line
+			//  a) starts with ">", or
+			//  b) is almost empty, except for whitespace, or
+			//  c) is preceeded by an unbroken chain of non-empty lines
+			//     leading up to a line that starts with ">" and at least one more character
+			// and in addition
+			//  d) at least one line fulfills a)
+			//
+			// Since this is essentially a backwards-moving regex, it's susceptible to
+			// catstrophic backtracking and can cause the browser to hang;
+			// see e.g. http://meta.stackexchange.com/questions/9807.
+			//
+			// Hence we replaced this by a simple state machine that just goes through the
+			// lines and checks for a), b), and c).
+
+			var match = "",
+				leftOver = "",
+				line;
+			if (chunk.before) {
+				var lines = chunk.before.replace(/\n$/, "").split("\n");
+				var inChain = false;
+				for (var i = 0; i < lines.length; i++) {
+					var good = false;
+					line = lines[i];
+					inChain = inChain && line.length > 0; // c) any non-empty line continues the chain
+					if (/^>/.test(line)) {                // a)
+						good = true;
+						if (!inChain && line.length > 1)  // c) any line that starts with ">" and has at least one more character starts the chain
+							inChain = true;
+					} else if (/^[ \t]*$/.test(line)) {   // b)
+						good = true;
+					} else {
+						good = inChain;                   // c) the line is not empty and does not start with ">", so it matches if and only if we're in the chain
+					}
+					if (good) {
+						match += line + "\n";
+					} else {
+						leftOver += match + line;
+						match = "\n";
+					}
+				}
+				if (!/(^|\n)>/.test(match)) {             // d)
+					leftOver += match;
+					match = "";
+				}
+			}
+
+			chunk.startTag = match;
+			chunk.before = leftOver;
+
+			// end of change
+
+			if (chunk.after) {
+				chunk.after = chunk.after.replace(/^\n?/, "\n");
+			}
+
+			chunk.after = chunk.after.replace(/^(((\n|^)(\n[ \t]*)*>(.+\n)*.*)+(\n[ \t]*)*)/,
+				function (totalMatch) {
+					chunk.endTag = totalMatch;
+					return "";
+				}
+			);
+
+			var replaceBlanksInTags = function (useBracket) {
+
+				var replacement = useBracket ? "> " : "";
+
+				if (chunk.startTag) {
+					chunk.startTag = chunk.startTag.replace(/\n((>|\s)*)\n$/,
+						function (totalMatch, markdown) {
+							return "\n" + markdown.replace(/^[ ]{0,3}>?[ \t]*$/gm, replacement) + "\n";
+						});
+				}
+				if (chunk.endTag) {
+					chunk.endTag = chunk.endTag.replace(/^\n((>|\s)*)\n/,
+						function (totalMatch, markdown) {
+							return "\n" + markdown.replace(/^[ ]{0,3}>?[ \t]*$/gm, replacement) + "\n";
+						});
+				}
+			};
+
+			if (/^(?![ ]{0,3}>)/m.test(chunk.selection)) {
+				this.wrap(chunk, SETTINGS.lineLength - 2);
+				chunk.selection = chunk.selection.replace(/^/gm, "> ");
+				replaceBlanksInTags(true);
+				chunk.skipLines();
+			} else {
+				chunk.selection = chunk.selection.replace(/^[ ]{0,3}> ?/gm, "");
+				this.unwrap(chunk);
+				replaceBlanksInTags(false);
+
+				if (!/^(\n|^)[ ]{0,3}>/.test(chunk.selection) && chunk.startTag) {
+					chunk.startTag = chunk.startTag.replace(/\n{0,2}$/, "\n\n");
+				}
+
+				if (!/(\n|^)[ ]{0,3}>.*$/.test(chunk.selection) && chunk.endTag) {
+					chunk.endTag = chunk.endTag.replace(/^\n{0,2}/, "\n\n");
+				}
+			}
+
+			chunk.selection = hooks.postBlockquoteCreation(chunk.selection);
+
+			if (!/\n/.test(chunk.selection)) {
+				chunk.selection = chunk.selection.replace(/^(> *)/,
+				function (wholeMatch, blanks) {
+					chunk.startTag += blanks;
+					return "";
+				});
+			}
+
+			finish(chunk);
+		};
+
+		cp.code = function () {
+			var self = this, chunk = initiate();
+			var hasTextBefore = /\S[ ]*$/.test(chunk.before);
+			var hasTextAfter = /^[ ]*\S/.test(chunk.after);
+
+			// Use 'four space' markdown if the selection is on its own
+			// line or is multiline.
+			if ((!hasTextAfter && !hasTextBefore) || /\n/.test(chunk.selection)) {
+
+				chunk.before = chunk.before.replace(/[ ]{4}$/,
+					function (totalMatch) {
+						chunk.selection = totalMatch + chunk.selection;
+						return "";
+					});
+
+				var nLinesBack = 1;
+				var nLinesForward = 1;
+
+				if (/(\n|^)(\t|[ ]{4,}).*\n$/.test(chunk.before)) {
+					nLinesBack = 0;
+				}
+				if (/^\n(\t|[ ]{4,})/.test(chunk.after)) {
+					nLinesForward = 0;
+				}
+
+				chunk.skipLines(nLinesBack, nLinesForward);
+
+				if (!chunk.selection) {
+					chunk.startTag = "    ";
+					chunk.selection = editor.getString("codeexample");
+				}
+				else {
+					if (/^[ ]{0,3}\S/m.test(chunk.selection)) {
+						if (/\n/.test(chunk.selection))
+							chunk.selection = chunk.selection.replace(/^/gm, "    ");
+						else // if it's not multiline, do not select the four added spaces; this is more consistent with the doList behavior
+							chunk.before += "    ";
+					}
+					else {
+						chunk.selection = chunk.selection.replace(/^(?:[ ]{4}|[ ]{0,3}\t)/gm, "");
+					}
+				}
+			}
+			else {
+				// Use backticks (`) to delimit the code block.
+
+				chunk.trimWhitespace();
+				chunk.findTags(/`/, /`/);
+
+				if (!chunk.startTag && !chunk.endTag) {
+					chunk.startTag = chunk.endTag = "`";
+					if (!chunk.selection) {
+						chunk.selection = editor.getString("codeexample");
+					}
+				}
+				else if (chunk.endTag && !chunk.startTag) {
+					chunk.before += chunk.endTag;
+					chunk.endTag = "";
+				}
+				else {
+					chunk.startTag = chunk.endTag = "";
+				}
+			}
+
+			finish(chunk);
+		};
+
+		return new CommandManager();
+	}
 
 })(Markdown);
 
