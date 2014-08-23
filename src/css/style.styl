@@ -29,10 +29,13 @@ $border-radius = 40px
 
 	#wmd-button-row-buttons, #wmd-button-row-link, #wmd-button-row-image
 		display	none
+		visibility hidden
 		white-space nowrap
 
-	&[data-show]
+	&[data-show-on], &[data-show-on] #wmd-button-row-buttons, &[data-show-on]  #wmd-button-row-link, &[data-show-on]  #wmd-button-row-image
 		visibility visible
+
+	&[data-show]
 		animation 0.2s toolbar
 
 	&[data-show='buttons'] #wmd-button-row-buttons

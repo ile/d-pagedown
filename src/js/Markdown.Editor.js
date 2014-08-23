@@ -369,37 +369,48 @@ if (!String.prototype.trim) {
 		this.toolbar.show = function(which) {
 			which = which || 'buttons';
 
+			function selectionEqual(sel1, sel2) {
+				if (!sel1) return;
+				if (!sel1.length !== 1) return;
+
+				if (sel1[0] === sel2[0] && sel1[1] === sel2[1]) {
+					return true;
+				}
+			}
+
 			function calculatePosition() {
 				var boundary = self.caretPosition.get(self.input.selectionStart, self.input.selectionEnd),
 					middleBoundary = (boundary.right + boundary.left) / 2,
-					halfWidth = this.offsetWidth / 2;
+					halfWidth = (this.offsetWidth || 166) / 2;
 
-				console.log(boundary);
+				// console.log(boundary);
 				// console.log('left: '+(middleBoundary - halfWidth));
 				// console.log('middleBoundary: '+middleBoundary);
 				// console.log('halfWidth: '+halfWidth);
 
 				// save the selection info for later use
 				this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
-				this.style.top = (boundary.top - 10) + 'px';
-				this.style.left = (middleBoundary - halfWidth) + 'px';
+				this.style.top = (boundary.top - 50) + 'px';
+				this.style.left = (middleBoundary - halfWidth + self.input.parentNode.offsetLeft) + 'px';
 			}
 
 			// showing but selection has changed
 			// if (this.className.indexOf('show-' + which) !== -1 &&
 			var attr = this.getAttribute('data-show');
 			if (attr === which &&
-				this.sel !== [ self.input.selectionStart, self.input.selectionEnd ]) {
+				!selectionEqual(this.sel, [ self.input.selectionStart, self.input.selectionEnd ])) {
 				calculatePosition.call(this);
 			}
 			else {
-				calculatePosition.call(this);
 				this.setAttribute('data-show', which);
+				calculatePosition.call(this);
+				this.setAttribute('data-show-on', 1);
 			}
 		};
 
 		this.toolbar.hide = function() {
 			this.removeAttribute('data-show');
+			this.removeAttribute('data-show-on');
 		};
 
 		this.input.clearSelection = function() {

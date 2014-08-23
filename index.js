@@ -10,10 +10,17 @@ DerbyPageDown.prototype.init = function(model) {
 };
 
 DerbyPageDown.prototype.create = function(model) {
+	var self = this;
 	Editor = require("./src/js/Markdown.Editor");
 	editor = this.editor = new Editor(this);
 	editor.run();
 	this.expandingArea.className += " active";
+
+	model.on('change', model.at('autofocus'), function(val) {
+		if (val) {
+			self.input.focus();
+		}
+	});
 };
 
 DerbyPageDown.prototype.emitKeydown = function(ev, el) {
