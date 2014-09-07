@@ -27,3 +27,8 @@ DerbyPageDown.prototype.emitKeydown = function(ev, el) {
 	this.emit("keydown", ev, el);
 };
 
+DerbyPageDown.prototype.toolbar = function(which) {
+	var t = this.model.get('toolbar');
+	return !t || t.indexOf(which) !== -1;
+};
+
