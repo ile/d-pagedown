@@ -391,7 +391,7 @@ if (!String.prototype.trim) {
 				// save the selection info for later use
 				this.sel = [ self.input.selectionStart, self.input.selectionEnd ];
 				this.style.top = (boundary.top - 50) + 'px';
-				this.style.left = (middleBoundary - halfWidth + self.input.parentNode.offsetLeft) + 'px';
+				this.style.left = (middleBoundary - halfWidth) + 'px';
 			}
 
 			// showing but selection has changed
