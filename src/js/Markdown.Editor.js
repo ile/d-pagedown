@@ -1517,7 +1517,7 @@ if (!String.prototype.trim) {
 				}
 			}
 
-			chunk.selection = hooks.postBlockquoteCreation(chunk.selection);
+			chunk.selection = this.hooks.postBlockquoteCreation(chunk.selection);
 
 			if (!/\n/.test(chunk.selection)) {
 				chunk.selection = chunk.selection.replace(/^(> *)/,
