@@ -928,7 +928,7 @@ if (!String.prototype.trim) {
 			chunk.after = chunk.endTag + chunk.after;
 
 			this.start = chunk.before.length;
-			this.end = chunk.before.length + chunk.selection.length;
+			this.end = chunk.before.length + (chunk.selection && chunk.selection.length || 0);
 			this.text = chunk.before + chunk.selection + chunk.after;
 			this.scrollTop = chunk.scrollTop;
 		};
@@ -984,8 +984,9 @@ if (!String.prototype.trim) {
 				charStr = String.fromCharCode(charCode);
 
 			function done(left, right) {
-				editor.commandManager.doWrap(left, right);
-				evt.preventDefault();
+				var prevent = editor.commandManager.doWrap(left, right);
+
+				if (prevent) evt.preventDefault();
 			}
 
 			switch (charStr) {
@@ -1101,14 +1102,14 @@ if (!String.prototype.trim) {
 		};
 
 		cp.bold = function () {
-			return this.doWrap('**', '**', editor.getString("boldexample"), true);
+			return this.doWrap('**', '**', true);
 		};
 
 		cp.italic = function () {
-			return this.doWrap('*', '*', editor.getString("italicexample"), true);
+			return this.doWrap('*', '*', true);
 		};
 
-		cp.doWrap = function (charsLeft, charsRight, insertText, toggle) {
+		cp.doWrap = function (charsLeft, charsRight, toggle) {
 			var howMany = charsLeft.length,
 				charLeft = charsLeft.charAt(0),
 				charRight = charsRight.charAt(0),
@@ -1119,41 +1120,29 @@ if (!String.prototype.trim) {
 			chunk.trimWhitespace();
 			chunk.selection = chunk.selection.replace(/\n{2,}/g, "\n");
 
-			// Look for stars before and after.  Is the chunk already marked up?
-			// note that these regex matches cannot fail
-			if (toggle) {
-				before = new RegExp(util.escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
-				after = new RegExp("^" + util.escapeRegExp(charRight) + "*").exec(chunk.after)[0];
-				prev = Math.min(before.length, after.length);
-			}
-
-			// Remove stars if we have to since the button acts as a toggle.
-			if (toggle && (prev >= howMany) && (prev != 2 || howMany != 1)) {
-				chunk.before = chunk.before.replace(new re(util.escapeRegExp(charsLeft) + "$", ""), "");
-				chunk.after = chunk.after.replace(new re("^" + util.escapeRegExp(charsRight), ""), "");
-			}
-			// else if (0 && !chunk.selection && after) {
-			//     // It's not really clear why this code is necessary.  It just moves
-			//     // some arbitrary stuff around.
-			//     chunk.after = chunk.after.replace(/^([*_]*)/, "");
-			//     chunk.before = chunk.before.replace(/(\s?)$/, "");
-			//     var whitespace = re.$1;
-			//     chunk.before = chunk.before + after + whitespace;
-			// }
-			else {
-
-				// In most cases, if you don't have any selected text and click the button
-				// you'll get a selected, marked up region with the default text inserted.
-				if (!chunk.selection && !after) {
-					chunk.selection = insertText;
+			if (chunk.selection) {
+				// Look for stars before and after.  Is the chunk already marked up?
+				// note that these regex matches cannot fail
+				if (toggle) {
+					before = new RegExp(util.escapeRegExp(charLeft) + "*$").exec(chunk.before)[0];
+					after = new RegExp("^" + util.escapeRegExp(charRight) + "*").exec(chunk.after)[0];
+					prev = Math.min(before.length, after.length);
 				}
 
-				// Add the true markup.
-				chunk.before = chunk.before + charsLeft;
-				chunk.after = charsRight + chunk.after;
-			}
+				// Remove stars if we have to since the button acts as a toggle.
+				if (toggle && (prev >= howMany) && (prev != 2 || howMany != 1)) {
+					chunk.before = chunk.before.replace(new re(util.escapeRegExp(charsLeft) + "$", ""), "");
+					chunk.after = chunk.after.replace(new re("^" + util.escapeRegExp(charsRight), ""), "");
+				}
+				else {
+					// Add the true markup.
+					chunk.before = chunk.before + charsLeft;
+					chunk.after = charsRight + chunk.after;
+				}
 
-			finish(chunk);
+				finish(chunk);
+				return true;
+			}
 		};
 
 		function stripLinkDefs(text, defsToAdd) {
