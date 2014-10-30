@@ -1,6 +1,6 @@
 {
   "name": "d-pagedown",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "markdown converter, based on showdown",
   "repository": {
     "type": "hg",
@@ -10,11 +10,6 @@
     "markdown"
   ],
   "license": "MIT",
-  "files": [
-    "Markdown.Converter.js",
-    "Markdown.Sanitizer.js",
-    "node-pagedown.js"
-  ],
   "main": "index.js",
   "bugs": {
     "url": "http://code.google.com/p/pagedown/issues/list"
