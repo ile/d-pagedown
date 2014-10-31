@@ -1,6 +1,6 @@
 #d-pagedown
 
-Derby.js plugin of pagedown.
+Derby.js plugin of pagedown with some (a lot of) modifications.
 
 https://github.com/ujifgc/pagedown
 https://code.google.com/p/pagedown/
