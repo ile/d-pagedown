@@ -362,8 +362,24 @@ if (!String.prototype.trim) {
 
 		this.toolbar.contains = function(n) {
 			if (n) {
-				if ((n.id === id) || (n.parentNode && n.parentNode.id === id) || (n.parentNode.parentNode && n.parentNode.parentNode.id === id) || (n.parentNode.parentNode.parentNode && n.parentNode.parentNode.parentNode.id === id)) {
+				if (n.id === id) {
 					return true;
+				}
+
+				if (n.parentNode) {
+					if (n.parentNode.id === id) {
+						return true;
+					}
+
+					if (n.parentNode.parentNode) {
+						if (n.parentNode.parentNode.id === id) {
+							return true;
+						}
+
+						if (n.parentNode.parentNode.parentNode && n.parentNode.parentNode.parentNode.id === id) {
+							return true;
+						}
+					}
 				}
 			}
 		};
