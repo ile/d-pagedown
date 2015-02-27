@@ -16,7 +16,7 @@
   },
   "homepage": "http://code.google.com/p/pagedown/wiki/PageDown",
   "dependencies": {
-    "textarea-caret-position": "git://github.com/ilkkah/textarea-caret-position#master"
+    "textarea-caret-position": "*"
   },
   "scripts": {
     "test": "echo \"Error: no test specified\" && exit 1"
