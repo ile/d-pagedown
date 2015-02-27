@@ -1,6 +1,6 @@
 {
   "name": "d-pagedown",
-  "version": "0.1.4",
+  "version": "0.1.5",
   "description": "markdown converter, based on showdown",
   "repository": {
     "type": "hg",
