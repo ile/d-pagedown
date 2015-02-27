@@ -387,6 +387,8 @@ if (!String.prototype.trim) {
 		this.toolbar.show = function(which) {
 			which = which || 'buttons';
 
+			// console.log('this.toolbar.show')
+
 			function selectionEqual(sel1, sel2) {
 				if (!sel1) return;
 				if (!sel1.length !== 1) return;
@@ -423,6 +425,7 @@ if (!String.prototype.trim) {
 				this.setAttribute('data-show', which);
 				calculatePosition.call(this);
 				this.setAttribute('data-show-on', 1);
+				// console.log('set data-show-on 1')
 			}
 		};
 
@@ -436,12 +439,12 @@ if (!String.prototype.trim) {
 		};
 
 		function showToolbarIfNeeded(e) {
+			// console.log('showToolbarIfNeeded');
 			setTimeout(function () {
-				var sel = window.getSelection(),
-					s = sel? sel.toString().trim().length: false;
+				var sel = self.input.selectionEnd - self.input.selectionStart;
 
 				// show toolbar if text is selected
-				if (s) {
+				if (sel) {
 					editor.panels.toolbar.show();
 				}
 				else {
