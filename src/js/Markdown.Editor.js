@@ -451,7 +451,7 @@ if (!String.prototype.trim) {
 		}
 
 		util.addEvent(this.input, 'keydown', function(e) {
-			var keyCode = event.charCode || event.keyCode;
+			var keyCode = e.charCode || e.keyCode;
 
 			// clear selection
 			if (keyCode === 27) {
