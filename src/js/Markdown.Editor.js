@@ -998,17 +998,16 @@ if (!String.prototype.trim) {
 			}
 		}
 
-		util.addEvent(inputBox, "keypress", function (evt) {
-			var charCode = evt.keyCode || evt.which,
-				charStr = String.fromCharCode(charCode);
+		util.addEvent(inputBox, "keypress", function (e) {
+			var chr = e.key || e.keyCode && String.fromCharCode(e.keyCode);
 
 			function done(left, right) {
 				var prevent = editor.commandManager.doWrap(left, right);
 
-				if (prevent) evt.preventDefault();
+				if (prevent) e.preventDefault();
 			}
 
-			switch (charStr) {
+			switch (chr) {
 				case "(":
 					done('(', ')');
 					break;
