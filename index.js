@@ -23,6 +23,10 @@ DerbyPageDown.prototype.create = function(model) {
 	});
 };
 
+DerbyPageDown.prototype.focus = function(ev, el) {
+	this.model.del('autofocus');
+};
+
 DerbyPageDown.prototype.emitKeydown = function(ev, el) {
 	this.emit("keydown", ev, el);
 };
