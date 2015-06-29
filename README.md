@@ -1,4 +1,4 @@
-#d-pagedown
+#k-pagedown
 
 Derby.js plugin of pagedown with some (a lot of) modifications.
 
@@ -7,4 +7,4 @@ https://code.google.com/p/pagedown/
 
 ##Demo
 
-https://derby-demos.herokuapp.com/d-pagedown
+https://derby-demos.herokuapp.com/k-pagedown
